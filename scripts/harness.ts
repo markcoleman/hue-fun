@@ -1,12 +1,65 @@
-import { authenticate, createHueClient, discoverHueBridges } from "../src/index";
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
+import {
+  authenticate,
+  createHueClient,
+  discoverHueBridges,
+  HueHttpError,
+} from "../src/index";
 
 const INSECURE_TLS_ENV = "HUE_INSECURE_TLS";
+const DEBUG_HTTP_ENV = "HUE_DEBUG_HTTP";
+const DOT_ENV_PATH = resolve(process.cwd(), ".env");
 const CERTIFICATE_ERROR_CODES = new Set([
   "DEPTH_ZERO_SELF_SIGNED_CERT",
   "ERR_TLS_CERT_ALTNAME_INVALID",
   "SELF_SIGNED_CERT_IN_CHAIN",
   "UNABLE_TO_VERIFY_LEAF_SIGNATURE",
 ]);
+
+function parseDotEnvValue(rawValue: string): string {
+  const trimmed = rawValue.trim();
+  if ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
+    const inner = trimmed.slice(1, -1);
+    if (trimmed.startsWith('"')) {
+      return inner.replace(/\\n/g, "\n").replace(/\\r/g, "\r").replace(/\\t/g, "\t").replace(/\\"/g, '"');
+    }
+    return inner;
+  }
+
+  const commentIndex = trimmed.search(/\s#/);
+  return commentIndex === -1 ? trimmed : trimmed.slice(0, commentIndex).trimEnd();
+}
+
+function loadDotEnv(): void {
+  if (!existsSync(DOT_ENV_PATH)) {
+    return;
+  }
+
+  const contents = readFileSync(DOT_ENV_PATH, "utf8");
+  for (const line of contents.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (trimmed.length === 0 || trimmed.startsWith("#")) {
+      continue;
+    }
+
+    const match = /^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/.exec(trimmed);
+    if (!match) {
+      continue;
+    }
+
+    const key = match[1];
+    const rawValue = match[2] ?? "";
+    if (!key || process.env[key] !== undefined) {
+      continue;
+    }
+
+    process.env[key] = parseDotEnvValue(rawValue);
+  }
+}
+
+loadDotEnv();
 
 function parseArgs(argv: string[]): { flags: Map<string, string | boolean>; positionals: string[] } {
   const flags = new Map<string, string | boolean>();
@@ -52,6 +105,41 @@ function shouldAllowInsecureTls(flags: Map<string, string | boolean>): boolean {
   return flags.get("insecure-tls") === true || process.env[INSECURE_TLS_ENV] === "1";
 }
 
+function shouldDebugHttp(flags: Map<string, string | boolean>): boolean {
+  return flags.get("debug-http") === true || process.env[DEBUG_HTTP_ENV] === "1";
+}
+
+function redactHeaderValue(name: string, value: string): string {
+  if (name.toLowerCase() !== "hue-application-key") {
+    return value;
+  }
+  if (value.length <= 8) {
+    return "<redacted>";
+  }
+  return `${value.slice(0, 4)}...${value.slice(-4)} (len=${value.length})`;
+}
+
+function createHarnessFetch(flags: Map<string, string | boolean>): typeof fetch | undefined {
+  if (!shouldDebugHttp(flags)) {
+    return undefined;
+  }
+
+  return async (input: RequestInfo | URL, init?: RequestInit) => {
+    const request = input instanceof Request ? input : new Request(input, init);
+    console.error(`[harness] ${request.method} ${request.url}`);
+    const headerLines = Array.from(request.headers.entries()).map(
+      ([name, value]) => `${name}: ${redactHeaderValue(name, value)}`,
+    );
+    if (headerLines.length > 0) {
+      console.error(`[harness] request headers:\n${headerLines.join("\n")}`);
+    }
+
+    const response = await fetch(request);
+    console.error(`[harness] response ${response.status} ${response.statusText}`);
+    return response;
+  };
+}
+
 function enableInsecureTls(flags: Map<string, string | boolean>): void {
   if (!shouldAllowInsecureTls(flags)) {
     return;
@@ -71,11 +159,13 @@ function createClientFromEnv(flags: Map<string, string | boolean>) {
   enableInsecureTls(flags);
 
   const clientKey = process.env.HUE_CLIENT_KEY;
+  const debugFetch = createHarnessFetch(flags);
 
   return createHueClient({
     applicationKey,
     bridgeUrl,
     ...(clientKey ? { clientKey } : {}),
+    ...(debugFetch ? { fetch: debugFetch } : {}),
     userAgent: "openhue-client-harness/0.1.0",
   });
 }
@@ -100,28 +190,56 @@ function collectErrorChain(error: unknown): Array<{ code?: string; message: stri
 }
 
 function isCertificateFailure(error: unknown): boolean {
-  const chain = collectErrorChain(error);
-  return chain.some(({ code, message }) => {
+  return collectErrorChain(error).some(({ code, message }) => {
     if (code && CERTIFICATE_ERROR_CODES.has(code)) {
       return true;
     }
-
     return /certificate|self-signed|unable to verify/i.test(message);
   });
 }
 
-function formatError(error: unknown): string {
-  const chain = collectErrorChain(error);
-  if (chain.length === 0) {
-    return String(error);
+function formatHttpErrorBody(body: unknown): string | undefined {
+  if (body === undefined || body === null) {
+    return undefined;
   }
 
-  return chain
-    .map(({ code, message }, index) => {
-      const suffix = code ? ` (${code})` : "";
-      return index === 0 ? `${message}${suffix}` : `caused by: ${message}${suffix}`;
-    })
-    .join("\n");
+  if (typeof body === "string") {
+    const trimmed = body.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+  }
+
+  try {
+    return JSON.stringify(body, null, 2);
+  } catch {
+    return String(body);
+  }
+}
+
+function formatError(error: unknown): string {
+  const chain = collectErrorChain(error);
+  const base =
+    chain.length === 0
+      ? String(error)
+      : chain
+          .map(({ code, message }, index) => {
+            const suffix = code ? ` (${code})` : "";
+            return index === 0 ? `${message}${suffix}` : `caused by: ${message}${suffix}`;
+          })
+          .join("\n");
+
+  if (error instanceof HueHttpError) {
+    const parts = [base];
+    if (error.url) {
+      parts.push(`request url: ${error.url}`);
+    }
+    const bodyText = formatHttpErrorBody(error.body);
+    if (bodyText) {
+      parts.push(`response body: ${bodyText}`);
+    }
+    return parts.join("\n");
+  }
+
+  return base;
 }
 
 function printTlsHint(command: string | undefined): void {
@@ -133,7 +251,7 @@ function printTlsHint(command: string | undefined): void {
     [
       "TLS verification failed.",
       "Philips Hue bridges commonly present a self-signed certificate on the local network.",
-      "If you trust this bridge, retry with `--insecure-tls` or set `HUE_INSECURE_TLS=1` for the harness process.",
+      "If you trust this bridge, retry with `--insecure-tls` or set `HUE_INSECURE_TLS=1` in `.env` or for the harness process.",
     ].join(" "),
   );
 }
@@ -151,6 +269,7 @@ async function main(): Promise<void> {
       enableInsecureTls(flags);
       const bridgeUrl = getFlag(flags, "bridge-url") ?? process.env.HUE_BRIDGE_URL;
       const deviceType = getFlag(flags, "device-type") ?? process.env.HUE_DEVICE_TYPE ?? "codex#openhue-client";
+      const debugFetch = createHarnessFetch(flags);
       if (!bridgeUrl) {
         throw new Error("Provide --bridge-url or set HUE_BRIDGE_URL.");
       }
@@ -159,6 +278,7 @@ async function main(): Promise<void> {
           bridgeUrl,
           deviceType,
           generateClientKey: flags.get("client-key") === true,
+          ...(debugFetch ? { fetch: debugFetch } : {}),
           userAgent: "openhue-client-harness/0.1.0",
         }),
       );
@@ -239,13 +359,13 @@ async function main(): Promise<void> {
         [
           "Usage:",
           "  npm run harness -- discover",
-          "  npm run harness -- auth --bridge-url https://<bridge-ip> [--device-type app#instance] [--client-key] [--insecure-tls]",
-          "  npm run harness -- list-lights [--insecure-tls]",
-          "  npm run harness -- get-light <lightId> [--insecure-tls]",
-          "  npm run harness -- toggle <lightId> <on|off> --write [--insecure-tls]",
-          "  npm run harness -- brightness <lightId> <brightness> --write [--insecure-tls]",
-          "  npm run harness -- scene-recall <sceneId> [active|dynamic_palette|static] --write [--insecure-tls]",
-          "  npm run harness -- stream-events [--since 1770336203:0] [--limit 5] [--insecure-tls]",
+          "  npm run harness -- auth --bridge-url https://<bridge-ip> [--device-type app#instance] [--client-key] [--insecure-tls] [--debug-http]",
+          "  npm run harness -- list-lights [--insecure-tls] [--debug-http]",
+          "  npm run harness -- get-light <lightId> [--insecure-tls] [--debug-http]",
+          "  npm run harness -- toggle <lightId> <on|off> --write [--insecure-tls] [--debug-http]",
+          "  npm run harness -- brightness <lightId> <brightness> --write [--insecure-tls] [--debug-http]",
+          "  npm run harness -- scene-recall <sceneId> [active|dynamic_palette|static] --write [--insecure-tls] [--debug-http]",
+          "  npm run harness -- stream-events [--since 1770336203:0] [--limit 5] [--insecure-tls] [--debug-http]",
         ].join("\n"),
       );
     }

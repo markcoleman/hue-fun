@@ -22,6 +22,8 @@ The test suite validates:
 
 ## Live bridge harness
 
+The harness automatically loads `.env` from the repo root before reading environment variables. Existing shell variables still take precedence.
+
 Environment variables:
 
 - `HUE_BRIDGE_URL`
@@ -29,12 +31,14 @@ Environment variables:
 - `HUE_CLIENT_KEY` (optional)
 - `HUE_DEVICE_TYPE` (optional, used by `auth`)
 - `HUE_INSECURE_TLS=1` (optional, disables TLS verification for trusted local bridges)
+- `HUE_DEBUG_HTTP=1` (optional, logs request URL and headers from the harness)
 
 Examples:
 
 ```bash
 npm run harness -- discover
 npm run harness -- list-lights
+npm run harness -- list-lights --debug-http
 npm run harness -- get-light <light-id>
 npm run harness -- toggle <light-id> on --write
 npm run harness -- brightness <light-id> 55 --write
