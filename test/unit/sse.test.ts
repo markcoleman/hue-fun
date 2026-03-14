@@ -46,6 +46,42 @@ describe("SSE support", () => {
     ]);
   });
 
+  it("flushes trailing UTF-8 decoder state before finishing the SSE parser", async () => {
+    const encoded = new TextEncoder().encode(
+      'id: 1770343753:0\ndata: [{"id":"event-1","type":"update","creationtime":"2026-02-06T02:09:13Z","data":[{"name":"Café"}]}]\n\n',
+    );
+    const splitIndex = encoded.lastIndexOf(0xc3);
+    expect(splitIndex).toBeGreaterThan(0);
+
+    const fetch = vi.fn(async () =>
+      sseResponse([
+        encoded.slice(0, splitIndex + 1),
+        encoded.slice(splitIndex + 1),
+      ]),
+    );
+
+    const client = createHueClient({
+      applicationKey: "test-key",
+      bridgeUrl: "https://bridge.local",
+      fetch,
+    });
+
+    const iterator = client.events.stream({ reconnect: false })[Symbol.asyncIterator]();
+    await expect(iterator.next()).resolves.toMatchObject({
+      done: false,
+      value: {
+        events: [
+          {
+            data: [{ name: "Café" }],
+            id: "event-1",
+            type: "update",
+          },
+        ],
+        id: "1770343753:0",
+      },
+    });
+  });
+
   it("fails fast on malformed JSON event payloads", async () => {
     const fetch = vi.fn(async () => sseResponse(['id: 1\n', 'data: {bad json}\n\n']));
 

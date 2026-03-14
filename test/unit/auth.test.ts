@@ -61,6 +61,30 @@ describe("authenticate", () => {
     });
   });
 
+  it("forwards the caller abort signal to the auth request", async () => {
+    const controller = new AbortController();
+    const fetch = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const request = input instanceof Request ? input : new Request(input, init);
+      return new Promise<Response>((_, reject) => {
+        request.signal.addEventListener(
+          "abort",
+          () => reject(request.signal.reason ?? new DOMException("Aborted", "AbortError")),
+          { once: true },
+        );
+        queueMicrotask(() => controller.abort(new DOMException("Aborted", "AbortError")));
+      });
+    });
+
+    await expect(
+      authenticate({
+        bridgeUrl: "https://bridge.local",
+        deviceType: "test-app#instance",
+        fetch,
+        signal: controller.signal,
+      }),
+    ).rejects.toThrow(/AbortError|Aborted/);
+  });
+
   it("throws a dedicated error when the bridge link button was not pressed", async () => {
     const fetch = vi.fn(async () =>
       jsonResponse([

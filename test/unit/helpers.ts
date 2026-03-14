@@ -13,14 +13,14 @@ export function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
   });
 }
 
-export function sseResponse(chunks: string[], init: ResponseInit = {}): Response {
+export function sseResponse(chunks: Array<string | Uint8Array>, init: ResponseInit = {}): Response {
   const headers = new Headers(init.headers);
   headers.set("Content-Type", "text/event-stream");
 
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
       for (const chunk of chunks) {
-        controller.enqueue(encoder.encode(chunk));
+        controller.enqueue(typeof chunk === "string" ? encoder.encode(chunk) : chunk);
       }
       controller.close();
     },

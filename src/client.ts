@@ -529,6 +529,7 @@ export async function authenticate(options: AuthenticateOptions): Promise<Authen
       ...(options.generateClientKey ? { generateclientkey: true } : {}),
     },
     client: generatedClient,
+    signal: options.signal,
   })) as GeneratedFieldsResult<AuthenticateEnvelope>;
 
   return parseAuthenticationResponse(unwrapResult(result, "authenticate"));
@@ -629,6 +630,17 @@ export function createHueClient(options: HueClientOptions): HueClient {
 
               const chunk = decoder.decode(value, { stream: true });
               for (const message of parser.push(chunk)) {
+                const parsed = parseEventMessage(message);
+                if (parsed.id) {
+                  lastEventId = parsed.id;
+                }
+                yield parsed;
+              }
+            }
+
+            const trailingChunk = decoder.decode();
+            if (trailingChunk.length > 0) {
+              for (const message of parser.push(trailingChunk)) {
                 const parsed = parseEventMessage(message);
                 if (parsed.id) {
                   lastEventId = parsed.id;
