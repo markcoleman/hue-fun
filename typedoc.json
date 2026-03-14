@@ -1,0 +1,11 @@
+{
+  "entryPoints": [
+    "src/index.ts"
+  ],
+  "out": "docs/api",
+  "tsconfig": "tsconfig.json",
+  "plugin": [],
+  "excludePrivate": true,
+  "excludeProtected": true,
+  "excludeInternal": true
+}

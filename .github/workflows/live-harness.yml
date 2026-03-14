@@ -1,0 +1,38 @@
+name: Live Harness
+
+on:
+  workflow_dispatch:
+    inputs:
+      command:
+        description: Harness command to run
+        required: true
+        default: list-lights
+        type: choice
+        options:
+          - list-lights
+          - get-light
+          - stream-events
+      args:
+        description: Optional additional args, for example a light id for get-light
+        required: false
+        type: string
+
+jobs:
+  harness:
+    runs-on: ubuntu-latest
+    env:
+      HUE_APP_KEY: ${{ secrets.HUE_APP_KEY }}
+      HUE_BRIDGE_URL: ${{ secrets.HUE_BRIDGE_URL }}
+      HUE_CLIENT_KEY: ${{ secrets.HUE_CLIENT_KEY }}
+      HUE_DEVICE_TYPE: ${{ secrets.HUE_DEVICE_TYPE }}
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v4
+        with:
+          cache: npm
+          node-version: "22"
+
+      - run: npm ci
+      - run: npm run harness -- ${{ inputs.command }} ${{ inputs.args }}
