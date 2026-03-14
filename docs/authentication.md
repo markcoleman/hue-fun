@@ -31,10 +31,4 @@ const result = await authenticate({
 npm run harness -- auth --bridge-url https://<bridge-ip> --device-type my-app#desktop --client-key
 ```
 
-If the bridge presents a self-signed local certificate, the harness may fail with `fetch failed` followed by a certificate cause. On a trusted local network, retry with:
-
-```bash
-npm run harness -- auth --bridge-url https://<bridge-ip> --client-key --insecure-tls
-```
-
-Or set `HUE_INSECURE_TLS=1` for the harness process.
+The harness defaults to insecure TLS for local Hue bridge connections, which matches common bridge behavior. If you want strict certificate verification instead, pass `--secure-tls` and install the bridge CA locally.

@@ -30,7 +30,7 @@ Environment variables:
 - `HUE_APP_KEY`
 - `HUE_CLIENT_KEY` (optional)
 - `HUE_DEVICE_TYPE` (optional, used by `auth`)
-- `HUE_INSECURE_TLS=1` (optional, disables TLS verification for trusted local bridges)
+- `HUE_INSECURE_TLS=0` (optional, opt back in to strict TLS verification)
 - `HUE_DEBUG_HTTP=1` (optional, logs request URL and headers from the harness)
 
 Examples:
@@ -38,6 +38,7 @@ Examples:
 ```bash
 npm run harness -- discover
 npm run harness -- list-lights
+npm run harness -- list-lights --json
 npm run harness -- list-lights --debug-http
 npm run harness -- get-light <light-id>
 npm run harness -- toggle <light-id> on --write
@@ -48,4 +49,5 @@ npm run harness -- auth --bridge-url https://<bridge-ip> --insecure-tls
 ```
 
 State-changing commands require `--write` so the harness stays safe by default.
-Use `--insecure-tls` only on a trusted local network when the bridge certificate cannot be verified.
+`list-lights` prints a compact table by default; pass `--json` for the full payload.
+The harness defaults to insecure TLS for local Hue bridges; use `--secure-tls` if you want strict certificate verification.

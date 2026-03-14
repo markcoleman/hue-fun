@@ -7,6 +7,12 @@ import {
   discoverHueBridges,
   HueHttpError,
 } from "../src/index";
+import type {
+  DeviceGet,
+  LightGet,
+  ResourceIdentifier,
+  RoomGet,
+} from "../src/generated";
 
 const INSECURE_TLS_ENV = "HUE_INSECURE_TLS";
 const DEBUG_HTTP_ENV = "HUE_DEBUG_HTTP";
@@ -17,6 +23,19 @@ const CERTIFICATE_ERROR_CODES = new Set([
   "SELF_SIGNED_CERT_IN_CHAIN",
   "UNABLE_TO_VERIFY_LEAF_SIGNATURE",
 ]);
+
+type RawFieldsResult<T> = {
+  data?: T;
+  error?: unknown;
+  request: Request;
+  response?: Response;
+};
+
+type LightTableRow = {
+  location: string;
+  name: string;
+  state: string;
+};
 
 function parseDotEnvValue(rawValue: string): string {
   const trimmed = rawValue.trim();
@@ -102,7 +121,16 @@ function printJson(value: unknown): void {
 }
 
 function shouldAllowInsecureTls(flags: Map<string, string | boolean>): boolean {
-  return flags.get("insecure-tls") === true || process.env[INSECURE_TLS_ENV] === "1";
+  if (flags.get("secure-tls") === true) {
+    return false;
+  }
+
+  const envValue = process.env[INSECURE_TLS_ENV];
+  if (envValue === "0" || envValue?.toLowerCase() === "false") {
+    return false;
+  }
+
+  return true;
 }
 
 function shouldDebugHttp(flags: Map<string, string | boolean>): boolean {
@@ -250,10 +278,115 @@ function printTlsHint(command: string | undefined): void {
   console.error(
     [
       "TLS verification failed.",
-      "Philips Hue bridges commonly present a self-signed certificate on the local network.",
-      "If you trust this bridge, retry with `--insecure-tls` or set `HUE_INSECURE_TLS=1` in `.env` or for the harness process.",
+      "The harness defaults to insecure TLS for local Hue bridges.",
+      "If you want full certificate verification, rerun with `--secure-tls` and install the bridge CA locally.",
     ].join(" "),
   );
+}
+
+function unwrapRawData<T>(result: RawFieldsResult<{ data?: T[] }>, operation: string): T[] {
+  if (result.error !== undefined) {
+    throw result.error instanceof Error ? result.error : new Error(`${operation} failed.`);
+  }
+  return result.data?.data ?? [];
+}
+
+function locationLabel(roomName: string | undefined, zones: string[]): string {
+  if (!roomName && zones.length === 0) {
+    return "-";
+  }
+  if (!roomName) {
+    return zones.join(", ");
+  }
+  if (zones.length === 0) {
+    return roomName;
+  }
+  return `${roomName} | ${zones.join(", ")}`;
+}
+
+function buildLocationMap(resources: RoomGet[]): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const resource of resources) {
+    const name = resource.metadata.name;
+    for (const child of resource.children) {
+      map.set(child.rid, name);
+    }
+    for (const service of resource.services) {
+      map.set(service.rid, name);
+    }
+  }
+  return map;
+}
+
+function buildZoneMap(resources: RoomGet[]): Map<string, string[]> {
+  const map = new Map<string, string[]>();
+  for (const resource of resources) {
+    const name = resource.metadata.name;
+    const refs: ResourceIdentifier[] = [...resource.children, ...resource.services];
+    for (const ref of refs) {
+      const current = map.get(ref.rid) ?? [];
+      if (!current.includes(name)) {
+        current.push(name);
+      }
+      map.set(ref.rid, current);
+    }
+  }
+  return map;
+}
+
+function formatLightRows(lights: LightGet[], devices: DeviceGet[], rooms: RoomGet[], zones: RoomGet[]): LightTableRow[] {
+  const deviceNameById = new Map(devices.map((device) => [device.id, device.metadata.name]));
+  const roomByRid = buildLocationMap(rooms);
+  const zoneByRid = buildZoneMap(zones);
+
+  return lights
+    .map((light) => {
+      const deviceId = light.owner.rid;
+      const name = deviceNameById.get(deviceId) ?? light.metadata?.name ?? light.id;
+      const roomName = roomByRid.get(deviceId) ?? roomByRid.get(light.id);
+      const zonesForLight = [
+        ...(zoneByRid.get(deviceId) ?? []),
+        ...(zoneByRid.get(light.id) ?? []),
+      ].filter((value, index, array) => array.indexOf(value) === index);
+
+      return {
+        location: locationLabel(roomName, zonesForLight),
+        name,
+        state: light.on.on ? "on" : "off",
+      };
+    })
+    .sort((left, right) => left.name.localeCompare(right.name));
+}
+
+function printTable(rows: LightTableRow[]): void {
+  if (rows.length === 0) {
+    console.log("No lights found.");
+    return;
+  }
+
+  const headers: Array<keyof LightTableRow> = ["name", "location", "state"];
+  const labels: Record<keyof LightTableRow, string> = {
+    location: "Location/Zone",
+    name: "Light",
+    state: "State",
+  };
+
+  const widths = new Map<keyof LightTableRow, number>();
+  for (const header of headers) {
+    const maxRowWidth = Math.max(...rows.map((row) => row[header].length));
+    widths.set(header, Math.max(labels[header].length, maxRowWidth));
+  }
+
+  const renderRow = (row: Record<keyof LightTableRow, string>) =>
+    headers
+      .map((header) => row[header].padEnd(widths.get(header) ?? 0))
+      .join("  ");
+
+  console.log(renderRow(labels));
+  console.log(headers.map((header) => "-".repeat(widths.get(header) ?? 0)).join("  "));
+  for (const row of rows) {
+    console.log(renderRow(row));
+  }
 }
 
 async function main(): Promise<void> {
@@ -286,7 +419,22 @@ async function main(): Promise<void> {
     }
     case "list-lights": {
       const client = createClientFromEnv(flags);
-      printJson(await client.lights.list());
+      const lights = await client.lights.list();
+      if (flags.get("json") === true) {
+        printJson(lights);
+        return;
+      }
+
+      const [devicesResult, roomsResult, zonesResult] = await Promise.all([
+        client.raw.getDevices() as Promise<RawFieldsResult<{ data?: DeviceGet[] }>>,
+        client.raw.getRooms() as Promise<RawFieldsResult<{ data?: RoomGet[] }>>,
+        client.raw.getZones() as Promise<RawFieldsResult<{ data?: RoomGet[] }>>,
+      ]);
+      const devices = unwrapRawData(devicesResult, "getDevices");
+      const rooms = unwrapRawData(roomsResult, "getRooms");
+      const zones = unwrapRawData(zonesResult, "getZones");
+
+      printTable(formatLightRows(lights, devices, rooms, zones));
       return;
     }
     case "get-light": {
@@ -359,13 +507,13 @@ async function main(): Promise<void> {
         [
           "Usage:",
           "  npm run harness -- discover",
-          "  npm run harness -- auth --bridge-url https://<bridge-ip> [--device-type app#instance] [--client-key] [--insecure-tls] [--debug-http]",
-          "  npm run harness -- list-lights [--insecure-tls] [--debug-http]",
-          "  npm run harness -- get-light <lightId> [--insecure-tls] [--debug-http]",
-          "  npm run harness -- toggle <lightId> <on|off> --write [--insecure-tls] [--debug-http]",
-          "  npm run harness -- brightness <lightId> <brightness> --write [--insecure-tls] [--debug-http]",
-          "  npm run harness -- scene-recall <sceneId> [active|dynamic_palette|static] --write [--insecure-tls] [--debug-http]",
-          "  npm run harness -- stream-events [--since 1770336203:0] [--limit 5] [--insecure-tls] [--debug-http]",
+          "  npm run harness -- auth --bridge-url https://<bridge-ip> [--device-type app#instance] [--client-key] [--secure-tls] [--debug-http]",
+          "  npm run harness -- list-lights [--json] [--secure-tls] [--debug-http]",
+          "  npm run harness -- get-light <lightId> [--secure-tls] [--debug-http]",
+          "  npm run harness -- toggle <lightId> <on|off> --write [--secure-tls] [--debug-http]",
+          "  npm run harness -- brightness <lightId> <brightness> --write [--secure-tls] [--debug-http]",
+          "  npm run harness -- scene-recall <sceneId> [active|dynamic_palette|static] --write [--secure-tls] [--debug-http]",
+          "  npm run harness -- stream-events [--since 1770336203:0] [--limit 5] [--secure-tls] [--debug-http]",
         ].join("\n"),
       );
     }
