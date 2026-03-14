@@ -1,0 +1,50 @@
+{
+  "name": "openhue-client",
+  "version": "0.1.0",
+  "description": "TypeScript client and helpers for the Philips Hue CLIP v2 API.",
+  "keywords": [
+    "philips-hue",
+    "hue",
+    "openapi",
+    "typescript"
+  ],
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.cts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "docs",
+    "src/generated"
+  ],
+  "scripts": {
+    "generate": "openapi-ts -f openapi-ts.config.ts",
+    "generate:check": "tsx scripts/check-generated.ts",
+    "build": "tsdown",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "docs": "typedoc",
+    "harness": "tsx scripts/harness.ts"
+  },
+  "devDependencies": {
+    "@hey-api/openapi-ts": "0.94.1",
+    "@types/node": "^24.5.2",
+    "tsdown": "^0.21.2",
+    "tsx": "^4.20.5",
+    "typedoc": "^0.28.13",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
+  }
+}
