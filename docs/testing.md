@@ -51,3 +51,27 @@ npm run harness -- auth --bridge-url https://<bridge-ip> --insecure-tls
 State-changing commands require `--write` so the harness stays safe by default.
 `list-lights` prints a compact table by default; pass `--json` for the full payload.
 The harness defaults to insecure TLS for local Hue bridges; use `--secure-tls` if you want strict certificate verification.
+
+## Interactive CLI smoke checks
+
+The dedicated CLI is separate from the harness. It is intended for normal control flows and scripting, while the harness stays focused on low-level bridge validation.
+
+Examples:
+
+```bash
+npm run cli -- status --json
+npm run cli -- lights list
+npm run cli -- rooms set Office --brightness 20
+npm run cli -- scenes recall Concentrate
+npm run cli -- workflow run movie-time --dry-run --json
+```
+
+Suggested manual smoke checklist against a real bridge:
+
+- `npm run cli -- auth --bridge-url https://<bridge-ip>`
+- `npm run cli -- ui`
+- `npm run cli -- lights on <light-name-or-id>`
+- `npm run cli -- lights off <light-name-or-id>`
+- `npm run cli -- rooms assign <room-name-or-id> <device-or-light> --yes`
+- `npm run cli -- zones set <zone-name-or-id> --brightness 25`
+- `npm run cli -- workflow run <workflow-name>`

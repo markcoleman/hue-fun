@@ -6,6 +6,7 @@ TypeScript client and helper layer for the Philips Hue CLIP v2 API, generated fr
 
 - Full generated low-level SDK under `client.raw`
 - High-level helpers for common Hue workflows
+- Dedicated `hue` CLI with profiles, JSON output, and saved workflows
 - Opt-in bridge harness for manual validation against a real bridge
 - Strict TypeScript, Vitest coverage, TypeDoc API docs, and GitHub Actions CI
 
@@ -25,6 +26,7 @@ npm test
 npm run build
 npm run docs
 npm run harness -- discover
+npm run cli -- status
 ```
 
 ## Quick Start
@@ -62,6 +64,19 @@ const credentials = await authenticate({
 });
 ```
 
+## CLI
+
+The repo also includes a dedicated `hue` CLI for scripting and interactive control.
+
+```bash
+npm run cli -- status
+npm run cli -- lights list
+npm run cli -- rooms set Office --brightness 20
+npm run cli -- workflow run movie-time --dry-run --json
+```
+
+See the full guide in [docs/cli.md](docs/cli.md).
+
 ## High-Level API
 
 ```ts
@@ -91,6 +106,7 @@ const response = await client.raw.getLights();
 
 - [Quick start](docs/quickstart.md)
 - [Authentication](docs/authentication.md)
+- [Interactive CLI](docs/cli.md)
 - [Light control](docs/light-control.md)
 - [Event streaming](docs/event-streaming.md)
 - [Testing and harness](docs/testing.md)
