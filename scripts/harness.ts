@@ -1,11 +1,9 @@
-import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import {
   authenticate,
   createHueClient,
   discoverHueBridges,
-  HueHttpError,
 } from "../src/index";
 import type {
   DeviceGet,
@@ -13,72 +11,22 @@ import type {
   ResourceIdentifier,
   RoomGet,
 } from "../src/generated";
-
-const INSECURE_TLS_ENV = "HUE_INSECURE_TLS";
-const DEBUG_HTTP_ENV = "HUE_DEBUG_HTTP";
+import { type GeneratedFieldsResult } from "../src/internal/api";
+import {
+  createDebugFetch,
+  enableInsecureTls,
+  formatError,
+  isCertificateFailure,
+} from "../src/internal/bridge-runtime";
+import { loadDotEnvFile } from "../src/internal/dotenv";
 const DOT_ENV_PATH = resolve(process.cwd(), ".env");
-const CERTIFICATE_ERROR_CODES = new Set([
-  "DEPTH_ZERO_SELF_SIGNED_CERT",
-  "ERR_TLS_CERT_ALTNAME_INVALID",
-  "SELF_SIGNED_CERT_IN_CHAIN",
-  "UNABLE_TO_VERIFY_LEAF_SIGNATURE",
-]);
-
-type RawFieldsResult<T> = {
-  data?: T;
-  error?: unknown;
-  request: Request;
-  response?: Response;
-};
 
 type LightTableRow = {
   location: string;
   name: string;
   state: string;
 };
-
-function parseDotEnvValue(rawValue: string): string {
-  const trimmed = rawValue.trim();
-  if ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
-    const inner = trimmed.slice(1, -1);
-    if (trimmed.startsWith('"')) {
-      return inner.replace(/\\n/g, "\n").replace(/\\r/g, "\r").replace(/\\t/g, "\t").replace(/\\"/g, '"');
-    }
-    return inner;
-  }
-
-  const commentIndex = trimmed.search(/\s#/);
-  return commentIndex === -1 ? trimmed : trimmed.slice(0, commentIndex).trimEnd();
-}
-
-function loadDotEnv(): void {
-  if (!existsSync(DOT_ENV_PATH)) {
-    return;
-  }
-
-  const contents = readFileSync(DOT_ENV_PATH, "utf8");
-  for (const line of contents.split(/\r?\n/)) {
-    const trimmed = line.trim();
-    if (trimmed.length === 0 || trimmed.startsWith("#")) {
-      continue;
-    }
-
-    const match = /^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/.exec(trimmed);
-    if (!match) {
-      continue;
-    }
-
-    const key = match[1];
-    const rawValue = match[2] ?? "";
-    if (!key || process.env[key] !== undefined) {
-      continue;
-    }
-
-    process.env[key] = parseDotEnvValue(rawValue);
-  }
-}
-
-loadDotEnv();
+loadDotEnvFile(DOT_ENV_PATH);
 
 function parseArgs(argv: string[]): { flags: Map<string, string | boolean>; positionals: string[] } {
   const flags = new Map<string, string | boolean>();
@@ -120,62 +68,6 @@ function printJson(value: unknown): void {
   console.log(JSON.stringify(value, null, 2));
 }
 
-function shouldAllowInsecureTls(flags: Map<string, string | boolean>): boolean {
-  if (flags.get("secure-tls") === true) {
-    return false;
-  }
-
-  const envValue = process.env[INSECURE_TLS_ENV];
-  if (envValue === "0" || envValue?.toLowerCase() === "false") {
-    return false;
-  }
-
-  return true;
-}
-
-function shouldDebugHttp(flags: Map<string, string | boolean>): boolean {
-  return flags.get("debug-http") === true || process.env[DEBUG_HTTP_ENV] === "1";
-}
-
-function redactHeaderValue(name: string, value: string): string {
-  if (name.toLowerCase() !== "hue-application-key") {
-    return value;
-  }
-  if (value.length <= 8) {
-    return "<redacted>";
-  }
-  return `${value.slice(0, 4)}...${value.slice(-4)} (len=${value.length})`;
-}
-
-function createHarnessFetch(flags: Map<string, string | boolean>): typeof fetch | undefined {
-  if (!shouldDebugHttp(flags)) {
-    return undefined;
-  }
-
-  return async (input: RequestInfo | URL, init?: RequestInit) => {
-    const request = input instanceof Request ? input : new Request(input, init);
-    console.error(`[harness] ${request.method} ${request.url}`);
-    const headerLines = Array.from(request.headers.entries()).map(
-      ([name, value]) => `${name}: ${redactHeaderValue(name, value)}`,
-    );
-    if (headerLines.length > 0) {
-      console.error(`[harness] request headers:\n${headerLines.join("\n")}`);
-    }
-
-    const response = await fetch(request);
-    console.error(`[harness] response ${response.status} ${response.statusText}`);
-    return response;
-  };
-}
-
-function enableInsecureTls(flags: Map<string, string | boolean>): void {
-  if (!shouldAllowInsecureTls(flags)) {
-    return;
-  }
-
-  process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
-}
-
 function createClientFromEnv(flags: Map<string, string | boolean>) {
   const bridgeUrl = process.env.HUE_BRIDGE_URL;
   const applicationKey = process.env.HUE_APP_KEY;
@@ -184,10 +76,15 @@ function createClientFromEnv(flags: Map<string, string | boolean>) {
     throw new Error("HUE_BRIDGE_URL and HUE_APP_KEY must be set.");
   }
 
-  enableInsecureTls(flags);
+  enableInsecureTls({ secureTls: flags.get("secure-tls") === true });
 
   const clientKey = process.env.HUE_CLIENT_KEY;
-  const debugFetch = createHarnessFetch(flags);
+  const debugFetch = createDebugFetch(
+    { debugHttp: flags.get("debug-http") === true },
+    process.env,
+    globalThis.fetch,
+    (line) => console.error(line.replace(/^\[hue\]/, "[harness]")),
+  );
 
   return createHueClient({
     applicationKey,
@@ -196,78 +93,6 @@ function createClientFromEnv(flags: Map<string, string | boolean>) {
     ...(debugFetch ? { fetch: debugFetch } : {}),
     userAgent: "openhue-client-harness/0.1.0",
   });
-}
-
-function collectErrorChain(error: unknown): Array<{ code?: string; message: string }> {
-  const chain: Array<{ code?: string; message: string }> = [];
-  let current: unknown = error;
-
-  while (current) {
-    if (current instanceof Error) {
-      const code = "code" in current && typeof current.code === "string" ? current.code : undefined;
-      chain.push({ code, message: current.message });
-      current = "cause" in current ? current.cause : undefined;
-      continue;
-    }
-
-    chain.push({ message: String(current) });
-    break;
-  }
-
-  return chain;
-}
-
-function isCertificateFailure(error: unknown): boolean {
-  return collectErrorChain(error).some(({ code, message }) => {
-    if (code && CERTIFICATE_ERROR_CODES.has(code)) {
-      return true;
-    }
-    return /certificate|self-signed|unable to verify/i.test(message);
-  });
-}
-
-function formatHttpErrorBody(body: unknown): string | undefined {
-  if (body === undefined || body === null) {
-    return undefined;
-  }
-
-  if (typeof body === "string") {
-    const trimmed = body.trim();
-    return trimmed.length > 0 ? trimmed : undefined;
-  }
-
-  try {
-    return JSON.stringify(body, null, 2);
-  } catch {
-    return String(body);
-  }
-}
-
-function formatError(error: unknown): string {
-  const chain = collectErrorChain(error);
-  const base =
-    chain.length === 0
-      ? String(error)
-      : chain
-          .map(({ code, message }, index) => {
-            const suffix = code ? ` (${code})` : "";
-            return index === 0 ? `${message}${suffix}` : `caused by: ${message}${suffix}`;
-          })
-          .join("\n");
-
-  if (error instanceof HueHttpError) {
-    const parts = [base];
-    if (error.url) {
-      parts.push(`request url: ${error.url}`);
-    }
-    const bodyText = formatHttpErrorBody(error.body);
-    if (bodyText) {
-      parts.push(`response body: ${bodyText}`);
-    }
-    return parts.join("\n");
-  }
-
-  return base;
 }
 
 function printTlsHint(command: string | undefined): void {
@@ -284,7 +109,7 @@ function printTlsHint(command: string | undefined): void {
   );
 }
 
-function unwrapRawData<T>(result: RawFieldsResult<{ data?: T[] }>, operation: string): T[] {
+function unwrapRawData<T>(result: GeneratedFieldsResult<{ data?: T[] }>, operation: string): T[] {
   if (result.error !== undefined) {
     throw result.error instanceof Error ? result.error : new Error(`${operation} failed.`);
   }
@@ -399,10 +224,15 @@ async function main(): Promise<void> {
       return;
     }
     case "auth": {
-      enableInsecureTls(flags);
       const bridgeUrl = getFlag(flags, "bridge-url") ?? process.env.HUE_BRIDGE_URL;
       const deviceType = getFlag(flags, "device-type") ?? process.env.HUE_DEVICE_TYPE ?? "codex#openhue-client";
-      const debugFetch = createHarnessFetch(flags);
+      enableInsecureTls({ secureTls: flags.get("secure-tls") === true });
+      const debugFetch = createDebugFetch(
+        { debugHttp: flags.get("debug-http") === true },
+        process.env,
+        globalThis.fetch,
+        (line) => console.error(line.replace(/^\[hue\]/, "[harness]")),
+      );
       if (!bridgeUrl) {
         throw new Error("Provide --bridge-url or set HUE_BRIDGE_URL.");
       }
@@ -426,9 +256,9 @@ async function main(): Promise<void> {
       }
 
       const [devicesResult, roomsResult, zonesResult] = await Promise.all([
-        client.raw.getDevices() as Promise<RawFieldsResult<{ data?: DeviceGet[] }>>,
-        client.raw.getRooms() as Promise<RawFieldsResult<{ data?: RoomGet[] }>>,
-        client.raw.getZones() as Promise<RawFieldsResult<{ data?: RoomGet[] }>>,
+        client.raw.getDevices() as Promise<GeneratedFieldsResult<{ data?: DeviceGet[] }>>,
+        client.raw.getRooms() as Promise<GeneratedFieldsResult<{ data?: RoomGet[] }>>,
+        client.raw.getZones() as Promise<GeneratedFieldsResult<{ data?: RoomGet[] }>>,
       ]);
       const devices = unwrapRawData(devicesResult, "getDevices");
       const rooms = unwrapRawData(roomsResult, "getRooms");

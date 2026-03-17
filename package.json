@@ -16,6 +16,9 @@
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.cts",
+  "bin": {
+    "hue": "./dist/hue.mjs"
+  },
   "exports": {
     ".": {
       "import": "./dist/index.js",
@@ -32,6 +35,8 @@
     "generate": "openapi-ts -f openapi-ts.config.ts",
     "generate:check": "tsx scripts/check-generated.ts",
     "build": "tsdown",
+    "build:exe": "npm run build && tsx scripts/build-exe.ts",
+    "cli": "tsx src/cli/bin.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -40,11 +45,31 @@
   },
   "devDependencies": {
     "@hey-api/openapi-ts": "0.94.1",
-    "@types/node": "^25.5.0",
+    "@types/node": "^24.5.2",
+    "@types/prompts": "2.4.9",
+    "postject": "1.0.0-alpha.6",
     "tsdown": "^0.21.2",
     "tsx": "^4.20.5",
     "typedoc": "^0.28.13",
     "typescript": "^5.9.2",
     "vitest": "^3.2.4"
+  },
+  "optionalDependencies": {
+    "keytar": "^7.9.0"
+  },
+  "dependencies": {
+    "commander": "^14.0.3",
+    "dotenv": "^17.3.1",
+    "picocolors": "^1.1.1",
+    "prompts": "^2.4.2",
+    "yaml": "^2.8.2"
+  },
+  "inlinedDependencies": {
+    "commander": "14.0.3",
+    "picocolors": "1.1.1",
+    "kleur": "3.0.3",
+    "prompts": "2.4.2",
+    "sisteransi": "1.0.5",
+    "yaml": "2.8.2"
   }
 }
