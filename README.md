@@ -24,6 +24,7 @@ npm run generate:check
 npm run typecheck
 npm test
 npm run build
+npm run build:exe
 npm run docs
 npm run harness -- discover
 npm run cli -- status
@@ -73,6 +74,7 @@ npm run cli -- status
 npm run cli -- lights list
 npm run cli -- rooms set Office --brightness 20
 npm run cli -- workflow run movie-time --dry-run --json
+npm run build:exe
 ```
 
 See the full guide in [docs/cli.md](docs/cli.md).

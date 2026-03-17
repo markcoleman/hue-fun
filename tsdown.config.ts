@@ -20,4 +20,17 @@ export default defineConfig([
     platform: "node",
     sourcemap: true,
   },
+  {
+    clean: false,
+    deps: {
+      alwaysBundle: ["commander", "picocolors", "prompts", "yaml"],
+    },
+    dts: false,
+    entry: {
+      "hue-sea": "src/cli/sea.ts",
+    },
+    format: ["cjs"],
+    platform: "node",
+    sourcemap: true,
+  },
 ]);

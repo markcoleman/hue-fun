@@ -15,8 +15,17 @@ After building, the generated executable entry is available as:
 
 ```bash
 npm run build
-./dist/hue.js status
+./dist/hue.mjs status
 ```
+
+To build a self-contained standalone executable for the current platform and architecture:
+
+```bash
+npm run build:exe
+./build/hue-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m) --help
+```
+
+The standalone executable embeds Node via SEA, so it does not require Node to be installed on the target machine.
 
 ## Config and secret precedence
 
@@ -28,6 +37,8 @@ Resolution order is:
 4. Built-in defaults
 
 Secrets are never written into YAML by the CLI. Persistent credentials are stored in the OS keychain when `keytar` is available.
+
+The self-contained SEA executable intentionally does not load `keytar`, so keychain persistence is unavailable there. Use env vars, flags, or a pre-populated YAML profile for standalone deployments.
 
 Supported global flags:
 
