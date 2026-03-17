@@ -64,6 +64,7 @@ npm run cli -- lights list
 npm run cli -- rooms set Office --brightness 20
 npm run cli -- scenes recall Concentrate
 npm run cli -- workflow run movie-time --dry-run --json
+npm run build:exe
 ```
 
 Suggested manual smoke checklist against a real bridge:
@@ -75,3 +76,4 @@ Suggested manual smoke checklist against a real bridge:
 - `npm run cli -- rooms assign <room-name-or-id> <device-or-light> --yes`
 - `npm run cli -- zones set <zone-name-or-id> --brightness 25`
 - `npm run cli -- workflow run <workflow-name>`
+- `./build/hue-<platform>-<arch> --help`

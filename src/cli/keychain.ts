@@ -4,7 +4,19 @@ const KEYCHAIN_SERVICE = "openhue-client";
 
 async function loadKeytar() {
   try {
-    return await import("keytar");
+    const sea = await import("node:sea");
+    if (sea.isSea()) {
+      return undefined;
+    }
+  } catch {
+    // Ignore runtimes without the SEA helper module.
+  }
+
+  try {
+    const dynamicImport = new Function("specifier", "return import(specifier)") as (
+      specifier: string,
+    ) => Promise<typeof import("keytar")>;
+    return await dynamicImport("keytar");
   } catch {
     return undefined;
   }
@@ -50,7 +62,9 @@ export function createKeychainStore(): SecretStore {
     async set(profile, secrets) {
       const keytar = await loadKeytar();
       if (!keytar) {
-        throw new Error("OS keychain support is unavailable. Install optional dependency `keytar` to persist secrets.");
+        throw new Error(
+          "OS keychain support is unavailable in this runtime. Install optional dependency `keytar` in the Node-based CLI to persist secrets.",
+        );
       }
 
       await keytar.setPassword(KEYCHAIN_SERVICE, accountName(profile), JSON.stringify(secrets));
