@@ -396,6 +396,188 @@ function createClientRuntime(options: HueClientOptions): {
   return { fetch, generatedClient };
 }
 
+async function unwrapResourceCollection<T>(
+  result: Promise<GeneratedFieldsResult<{ data?: T[]; errors?: ApiErrorEntry[] }>>,
+  operationName: string,
+): Promise<T[]> {
+  return unwrapApiData<T>(await result, operationName);
+}
+
+async function unwrapResourceIdentifiers(
+  result: Promise<GeneratedFieldsResult<{ data?: ResourceIdentifier[]; errors?: ApiErrorEntry[] }>>,
+  operationName: string,
+): Promise<ResourceIdentifier[]> {
+  return unwrapApiData<ResourceIdentifier>(await result, operationName);
+}
+
+function createLightHelpers(
+  generatedClient: GeneratedClient,
+): HueClient["lights"] {
+  const applyState = (lightId: string, state: HueLightStateInput) =>
+    unwrapResourceIdentifiers(
+      updateLight({
+        body: serializeLightState(state),
+        client: generatedClient,
+        path: { lightId },
+      }) as Promise<GeneratedFieldsResult<{ data?: ResourceIdentifier[]; errors?: ApiErrorEntry[] }>>,
+      "updateLight",
+    );
+
+  return {
+    applyState,
+    async get(lightId) {
+      const items = await unwrapResourceCollection<LightGet>(
+        getLight({ client: generatedClient, path: { lightId } }) as Promise<GeneratedFieldsResult<{
+          data?: LightGet[];
+          errors?: ApiErrorEntry[];
+        }>>,
+        "getLight",
+      );
+      return unwrapSingleResource(items, lightId, "getLight");
+    },
+    list() {
+      return unwrapResourceCollection<LightGet>(
+        getLights({ client: generatedClient }) as Promise<GeneratedFieldsResult<{
+          data?: LightGet[];
+          errors?: ApiErrorEntry[];
+        }>>,
+        "getLights",
+      );
+    },
+    off(lightId) {
+      return applyState(lightId, { on: false });
+    },
+    on(lightId) {
+      return applyState(lightId, { on: true });
+    },
+    setBrightness(lightId, brightness) {
+      return applyState(lightId, { brightness });
+    },
+    setColorTemperature(lightId, mirek) {
+      return applyState(lightId, { colorTemperatureMirek: mirek });
+    },
+    setColorXY(lightId, xy) {
+      return applyState(lightId, { xy });
+    },
+  };
+}
+
+function createGroupedLightHelpers(
+  generatedClient: GeneratedClient,
+): HueClient["groupedLights"] {
+  const applyState = (groupedLightId: string, state: HueGroupedLightStateInput) =>
+    unwrapResourceIdentifiers(
+      updateGroupedLight({
+        body: serializeGroupedLightState(state),
+        client: generatedClient,
+        path: { groupedLightId },
+      }) as Promise<GeneratedFieldsResult<{ data?: ResourceIdentifier[]; errors?: ApiErrorEntry[] }>>,
+      "updateGroupedLight",
+    );
+
+  return {
+    applyState,
+    async get(groupedLightId) {
+      const items = await unwrapResourceCollection<GroupedLightGet>(
+        getGroupedLight({ client: generatedClient, path: { groupedLightId } }) as Promise<GeneratedFieldsResult<{
+          data?: GroupedLightGet[];
+          errors?: ApiErrorEntry[];
+        }>>,
+        "getGroupedLight",
+      );
+      return unwrapSingleResource(items, groupedLightId, "getGroupedLight");
+    },
+    list() {
+      return unwrapResourceCollection<GroupedLightGet>(
+        getGroupedLights({ client: generatedClient }) as Promise<GeneratedFieldsResult<{
+          data?: GroupedLightGet[];
+          errors?: ApiErrorEntry[];
+        }>>,
+        "getGroupedLights",
+      );
+    },
+    off(groupedLightId) {
+      return applyState(groupedLightId, { on: false });
+    },
+    on(groupedLightId) {
+      return applyState(groupedLightId, { on: true });
+    },
+    setBrightness(groupedLightId, brightness) {
+      return applyState(groupedLightId, { brightness });
+    },
+    setColorTemperature(groupedLightId, mirek) {
+      return applyState(groupedLightId, { colorTemperatureMirek: mirek });
+    },
+    setColorXY(groupedLightId, xy) {
+      return applyState(groupedLightId, { xy });
+    },
+  };
+}
+
+function createSceneHelpers(
+  generatedClient: GeneratedClient,
+): HueClient["scenes"] {
+  return {
+    create(body) {
+      return unwrapResourceIdentifiers(
+        createScene({ body, client: generatedClient }) as Promise<GeneratedFieldsResult<{
+          data?: ResourceIdentifier[];
+          errors?: ApiErrorEntry[];
+        }>>,
+        "createScene",
+      );
+    },
+    delete(sceneId) {
+      return unwrapResourceIdentifiers(
+        deleteScene({ client: generatedClient, path: { sceneId } }) as Promise<GeneratedFieldsResult<{
+          data?: ResourceIdentifier[];
+          errors?: ApiErrorEntry[];
+        }>>,
+        "deleteScene",
+      );
+    },
+    async get(sceneId) {
+      const items = await unwrapResourceCollection<SceneGet>(
+        getScene({ client: generatedClient, path: { sceneId } }) as Promise<GeneratedFieldsResult<{
+          data?: SceneGet[];
+          errors?: ApiErrorEntry[];
+        }>>,
+        "getScene",
+      );
+      return unwrapSingleResource(items, sceneId, "getScene");
+    },
+    list() {
+      return unwrapResourceCollection<SceneGet>(
+        getScenes({ client: generatedClient }) as Promise<GeneratedFieldsResult<{
+          data?: SceneGet[];
+          errors?: ApiErrorEntry[];
+        }>>,
+        "getScenes",
+      );
+    },
+    recall(sceneId, recall = { action: "active" }) {
+      return unwrapResourceIdentifiers(
+        updateScene({
+          body: { recall },
+          client: generatedClient,
+          path: { sceneId },
+        }) as Promise<GeneratedFieldsResult<{ data?: ResourceIdentifier[]; errors?: ApiErrorEntry[] }>>,
+        "updateScene",
+      );
+    },
+    update(sceneId, body) {
+      return unwrapResourceIdentifiers(
+        updateScene({
+          body,
+          client: generatedClient,
+          path: { sceneId },
+        }) as Promise<GeneratedFieldsResult<{ data?: ResourceIdentifier[]; errors?: ApiErrorEntry[] }>>,
+        "updateScene",
+      );
+    },
+  };
+}
+
 /**
  * Discover Hue bridges on the local network via the official Meethue discovery service.
  */
@@ -462,26 +644,6 @@ export function createHueClient(options: HueClientOptions): HueClient {
   };
   const { fetch, generatedClient } = createClientRuntime(normalizedOptions);
   const raw = bindRawSdk(generatedClient);
-
-  const applyLightState = async (lightId: string, state: HueLightStateInput) =>
-    unwrapApiData<ResourceIdentifier>(
-      (await updateLight({
-        body: serializeLightState(state),
-        client: generatedClient,
-        path: { lightId },
-      })) as GeneratedFieldsResult<{ data?: ResourceIdentifier[]; errors?: ApiErrorEntry[] }>,
-      "updateLight",
-    );
-
-  const applyGroupedLightState = async (groupedLightId: string, state: HueGroupedLightStateInput) =>
-    unwrapApiData<ResourceIdentifier>(
-      (await updateGroupedLight({
-        body: serializeGroupedLightState(state),
-        client: generatedClient,
-        path: { groupedLightId },
-      })) as GeneratedFieldsResult<{ data?: ResourceIdentifier[]; errors?: ApiErrorEntry[] }>,
-      "updateGroupedLight",
-    );
 
   return {
     applicationKey: normalizedOptions.applicationKey,
@@ -585,139 +747,9 @@ export function createHueClient(options: HueClientOptions): HueClient {
         }
       },
     },
-    groupedLights: {
-      applyState: applyGroupedLightState,
-      async get(groupedLightId) {
-        const items = unwrapApiData<GroupedLightGet>(
-          (await getGroupedLight({ client: generatedClient, path: { groupedLightId } })) as GeneratedFieldsResult<{
-            data?: GroupedLightGet[];
-            errors?: ApiErrorEntry[];
-          }>,
-          "getGroupedLight",
-        );
-        return unwrapSingleResource(items, groupedLightId, "getGroupedLight");
-      },
-      async list() {
-        return unwrapApiData<GroupedLightGet>(
-          (await getGroupedLights({ client: generatedClient })) as GeneratedFieldsResult<{
-            data?: GroupedLightGet[];
-            errors?: ApiErrorEntry[];
-          }>,
-          "getGroupedLights",
-        );
-      },
-      off(groupedLightId) {
-        return applyGroupedLightState(groupedLightId, { on: false });
-      },
-      on(groupedLightId) {
-        return applyGroupedLightState(groupedLightId, { on: true });
-      },
-      setBrightness(groupedLightId, brightness) {
-        return applyGroupedLightState(groupedLightId, { brightness });
-      },
-      setColorTemperature(groupedLightId, mirek) {
-        return applyGroupedLightState(groupedLightId, { colorTemperatureMirek: mirek });
-      },
-      setColorXY(groupedLightId, xy) {
-        return applyGroupedLightState(groupedLightId, { xy });
-      },
-    },
-    lights: {
-      applyState: applyLightState,
-      async get(lightId) {
-        const items = unwrapApiData<LightGet>(
-          (await getLight({ client: generatedClient, path: { lightId } })) as GeneratedFieldsResult<{
-            data?: LightGet[];
-            errors?: ApiErrorEntry[];
-          }>,
-          "getLight",
-        );
-        return unwrapSingleResource(items, lightId, "getLight");
-      },
-      async list() {
-        return unwrapApiData<LightGet>(
-          (await getLights({ client: generatedClient })) as GeneratedFieldsResult<{
-            data?: LightGet[];
-            errors?: ApiErrorEntry[];
-          }>,
-          "getLights",
-        );
-      },
-      off(lightId) {
-        return applyLightState(lightId, { on: false });
-      },
-      on(lightId) {
-        return applyLightState(lightId, { on: true });
-      },
-      setBrightness(lightId, brightness) {
-        return applyLightState(lightId, { brightness });
-      },
-      setColorTemperature(lightId, mirek) {
-        return applyLightState(lightId, { colorTemperatureMirek: mirek });
-      },
-      setColorXY(lightId, xy) {
-        return applyLightState(lightId, { xy });
-      },
-    },
-    scenes: {
-      async create(body) {
-        return unwrapApiData<ResourceIdentifier>(
-          (await createScene({ body, client: generatedClient })) as GeneratedFieldsResult<{
-            data?: ResourceIdentifier[];
-            errors?: ApiErrorEntry[];
-          }>,
-          "createScene",
-        );
-      },
-      async delete(sceneId) {
-        return unwrapApiData<ResourceIdentifier>(
-          (await deleteScene({ client: generatedClient, path: { sceneId } })) as GeneratedFieldsResult<{
-            data?: ResourceIdentifier[];
-            errors?: ApiErrorEntry[];
-          }>,
-          "deleteScene",
-        );
-      },
-      async get(sceneId) {
-        const items = unwrapApiData<SceneGet>(
-          (await getScene({ client: generatedClient, path: { sceneId } })) as GeneratedFieldsResult<{
-            data?: SceneGet[];
-            errors?: ApiErrorEntry[];
-          }>,
-          "getScene",
-        );
-        return unwrapSingleResource(items, sceneId, "getScene");
-      },
-      async list() {
-        return unwrapApiData<SceneGet>(
-          (await getScenes({ client: generatedClient })) as GeneratedFieldsResult<{
-            data?: SceneGet[];
-            errors?: ApiErrorEntry[];
-          }>,
-          "getScenes",
-        );
-      },
-      async recall(sceneId, recall = { action: "active" }) {
-        return unwrapApiData<ResourceIdentifier>(
-          (await updateScene({
-            body: { recall },
-            client: generatedClient,
-            path: { sceneId },
-          })) as GeneratedFieldsResult<{ data?: ResourceIdentifier[]; errors?: ApiErrorEntry[] }>,
-          "updateScene",
-        );
-      },
-      async update(sceneId, body) {
-        return unwrapApiData<ResourceIdentifier>(
-          (await updateScene({
-            body,
-            client: generatedClient,
-            path: { sceneId },
-          })) as GeneratedFieldsResult<{ data?: ResourceIdentifier[]; errors?: ApiErrorEntry[] }>,
-          "updateScene",
-        );
-      },
-    },
+    groupedLights: createGroupedLightHelpers(generatedClient),
+    lights: createLightHelpers(generatedClient),
+    scenes: createSceneHelpers(generatedClient),
   };
 }
 

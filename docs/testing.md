@@ -3,12 +3,11 @@
 ## Local verification
 
 ```bash
-npm run generate:check
-npm run typecheck
-npm test
-npm run build
+npm run validate
 npm run docs
 ```
+
+`npm run validate` is the recommended one-command repo health check for both humans and coding agents.
 
 ## Unit coverage
 
