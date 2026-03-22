@@ -54,7 +54,7 @@ async function compareDirectories(actualDir: string, generatedDir: string): Prom
 }
 
 async function run(): Promise<void> {
-  const tempDir = await mkdtemp(join(tmpdir(), "openhue-generated-"));
+  const tempDir = await mkdtemp(join(tmpdir(), "newhue-generated-"));
 
   await new Promise<void>((resolve, reject) => {
     const child = spawn(openapiCli, ["-i", "openhue.yaml", "-o", tempDir, "-c", "@hey-api/client-fetch"], {

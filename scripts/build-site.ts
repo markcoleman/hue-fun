@@ -20,12 +20,12 @@ const apiDocsDir = path.join(docsDir, "api");
 const readmePath = path.join(repoRoot, "README.md");
 
 const siteOrigin = (process.env.SITE_ORIGIN ?? "https://example.com").replace(/\/$/, "");
-const basePathRaw = process.env.SITE_BASE_PATH ?? "/openhue-client";
+const basePathRaw = process.env.SITE_BASE_PATH ?? "/newhue-client";
 const basePath = normalizeBasePath(basePathRaw);
-const siteName = "OpenHue Client";
+const siteName = "NewHue Client";
 const siteTitle = `${siteName} — Hue automation with fun, modern docs`;
 const siteDescription =
-  "A trendy GitHub Pages hub for the OpenHue Client TypeScript SDK, CLI, MCP server, and Philips Hue how-to guides.";
+  "A trendy GitHub Pages hub for the NewHue Client TypeScript SDK, CLI, MCP server, and Philips Hue how-to guides.";
 const supportUrl = "https://buymeacottoncandy.com";
 const siteUrl = `${siteOrigin}${basePath}`;
 const navLinks = [
@@ -183,7 +183,7 @@ function renderIndexPage(input: { docs: GuideDoc[]; highlights: string[]; comman
             <span class="eyebrow">2026 design trend edition ✨</span>
             <h1>Fun, polished Hue docs for builders who want glow-up energy.</h1>
             <p>
-              OpenHue Client is a TypeScript SDK, CLI, and MCP server for Philips Hue. This GitHub Pages experience
+              NewHue Client is a TypeScript SDK, CLI, and MCP server for Philips Hue. This GitHub Pages experience
               remixes the repo docs into a vivid, searchable launchpad with dark mode, light mode, SEO, and social sharing baked in.
             </p>
             <div class="hero__actions">
@@ -240,7 +240,7 @@ function renderIndexPage(input: { docs: GuideDoc[]; highlights: string[]; comman
           <div class="section__heading">
             <div>
               <span class="eyebrow">How to use the repo</span>
-              <h2>Core commands for generating, validating, building, and exploring OpenHue Client.</h2>
+              <h2>Core commands for generating, validating, building, and exploring NewHue Client.</h2>
             </div>
           </div>
           <div class="command-cloud card">
@@ -366,7 +366,7 @@ function renderHead(input: { title: string; description: string; pathName: strin
     <meta property="og:type" content="${input.type}" />
     <meta property="og:url" content="${canonicalUrl}" />
     <meta property="og:image" content="${imageUrl}" />
-    <meta property="og:image:alt" content="OpenHue Client social preview card with colorful gradient lights" />
+    <meta property="og:image:alt" content="NewHue Client social preview card with colorful gradient lights" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="${escapeHtml(input.title)}" />
     <meta name="twitter:description" content="${escapeHtml(input.description)}" />

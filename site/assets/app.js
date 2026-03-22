@@ -1,5 +1,5 @@
 const root = document.documentElement;
-const storageKey = 'openhue-pages-theme';
+const storageKey = 'newhue-pages-theme';
 const toggle = document.querySelector('[data-theme-toggle]');
 const media = window.matchMedia('(prefers-color-scheme: dark)');
 

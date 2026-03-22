@@ -144,7 +144,7 @@ export function createCliHueClient(settings: ResolvedCliSettings, deps: CliDepen
     bridgeUrl: settings.bridgeUrl,
     ...(settings.clientKey ? { clientKey: settings.clientKey } : {}),
     ...(debugFetch ? { fetch: debugFetch } : deps.fetch ? { fetch: deps.fetch } : {}),
-    userAgent: "openhue-client-cli/0.1.0",
+    userAgent: "newhue-client-cli/0.1.0",
   });
 }
 

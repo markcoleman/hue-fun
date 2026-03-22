@@ -1,5 +1,5 @@
 {
-  "name": "openhue-client",
+  "name": "newhue-client",
   "version": "0.1.0",
   "description": "TypeScript client and helpers for the Philips Hue CLIP v2 API.",
   "keywords": [

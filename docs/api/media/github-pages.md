@@ -14,7 +14,7 @@ The repo now includes a dedicated GitHub Pages build that turns the existing Mar
 ```bash
 npm install
 npm run docs
-SITE_ORIGIN=https://example.com SITE_BASE_PATH=/openhue-client npm run pages:build
+SITE_ORIGIN=https://example.com SITE_BASE_PATH=/newhue-client npm run pages:build
 ```
 
 Open `site-dist/index.html` in a browser or serve `site-dist` with any static file server.

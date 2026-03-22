@@ -1,6 +1,6 @@
 import type { SecretStore, StoredSecrets } from "./types";
 
-const KEYCHAIN_SERVICE = "openhue-client";
+const KEYCHAIN_SERVICE = "newhue-client";
 
 async function loadKeytar() {
   try {

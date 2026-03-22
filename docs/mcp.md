@@ -78,7 +78,7 @@ When that header is present, the server uses it as the downstream Hue applicatio
 Build the image:
 
 ```bash
-docker build -t openhue-mcp .
+docker build -t newhue-mcp .
 ```
 
 Run it with a Docker secret mounted as a file:
@@ -91,7 +91,7 @@ docker run --rm -p 8080:8080 \
   -e HUE_MCP_API_KEY_FILE=/run/secrets/hue_mcp_api_key \
   -e HUE_MCP_ALLOWED_ORIGINS=https://chat.openai.com,https://chatgpt.com \
   -v "$PWD/.secrets/hue-mcp-api-key:/run/secrets/hue_mcp_api_key:ro" \
-  openhue-mcp
+  newhue-mcp
 ```
 
 If you prefer Docker Compose secrets:

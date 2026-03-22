@@ -17,7 +17,7 @@ import type {
   WorkflowDefinition,
 } from "./types";
 
-const DEFAULT_DEVICE_TYPE = "openhue-client#cli";
+const DEFAULT_DEVICE_TYPE = "newhue-client#cli";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -66,11 +66,11 @@ export function getDefaultConfigPath(env: Record<string, string | undefined> = p
   const home = homedir();
   switch (platform()) {
     case "darwin":
-      return join(home, "Library", "Application Support", "openhue-client", "config.yaml");
+      return join(home, "Library", "Application Support", "newhue-client", "config.yaml");
     case "win32":
-      return join(env.APPDATA ?? join(home, "AppData", "Roaming"), "openhue-client", "config.yaml");
+      return join(env.APPDATA ?? join(home, "AppData", "Roaming"), "newhue-client", "config.yaml");
     default:
-      return join(env.XDG_CONFIG_HOME ?? join(home, ".config"), "openhue-client", "config.yaml");
+      return join(env.XDG_CONFIG_HOME ?? join(home, ".config"), "newhue-client", "config.yaml");
   }
 }
 

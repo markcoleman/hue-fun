@@ -10,7 +10,7 @@ npm run generate
 ## 2. Discover the bridge
 
 ```ts
-import { discoverHueBridges } from "openhue-client";
+import { discoverHueBridges } from "newhue-client";
 
 const bridges = await discoverHueBridges();
 console.log(bridges);
@@ -21,7 +21,7 @@ console.log(bridges);
 Press the bridge link button and request a key:
 
 ```ts
-import { authenticate } from "openhue-client";
+import { authenticate } from "newhue-client";
 
 const credentials = await authenticate({
   bridgeUrl: "https://192.168.1.10",
@@ -33,7 +33,7 @@ const credentials = await authenticate({
 ## 4. Create a client
 
 ```ts
-import { createHueClient } from "openhue-client";
+import { createHueClient } from "newhue-client";
 
 const client = createHueClient({
   applicationKey: process.env.HUE_APP_KEY!,

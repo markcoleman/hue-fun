@@ -15,7 +15,7 @@ type RequestLog = {
 };
 
 function createTempDir(): string {
-  return mkdtempSync(join(tmpdir(), "openhue-cli-"));
+  return mkdtempSync(join(tmpdir(), "newhue-cli-"));
 }
 
 function createKeychain(initial: Record<string, StoredSecrets> = {}): SecretStore & { values: Map<string, StoredSecrets> } {
