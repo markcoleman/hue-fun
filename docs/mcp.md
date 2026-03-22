@@ -114,6 +114,19 @@ secrets:
     file: ./.secrets/hue-mcp-api-key
 ```
 
+## GitHub Container Registry publishing
+
+The repository CI workflow now publishes the MCP container image to GitHub Container Registry after the full test matrix succeeds on pushes to `main`. The workflow uses the built-in `GITHUB_TOKEN` and explicitly requests `packages: write` plus `contents: read`, which is enough for GHCR pushes without over-granting broader repository permissions.
+
+Published image name pattern:
+
+```text
+ghcr.io/<owner>/<repo>-mcp:latest
+ghcr.io/<owner>/<repo>-mcp:sha-<short-sha>
+```
+
+If package publishing is disabled at the repository or organization level, enable GitHub Actions package publishing for GHCR before relying on the automation.
+
 ## Configuration reference
 
 ### Existing Hue config inputs
