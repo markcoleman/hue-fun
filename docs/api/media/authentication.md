@@ -30,3 +30,5 @@ const result = await authenticate({
 ```bash
 npm run harness -- auth --bridge-url https://<bridge-ip> --device-type my-app#desktop --client-key
 ```
+
+The harness defaults to insecure TLS for local Hue bridge connections, which matches common bridge behavior. If you want strict certificate verification instead, pass `--secure-tls` and install the bridge CA locally.

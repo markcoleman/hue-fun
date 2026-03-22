@@ -35,6 +35,11 @@ jobs:
       - run: npm run build
       - if: matrix.node == '22'
         run: npm run docs
+      - if: matrix.node == '22'
+        env:
+          SITE_ORIGIN: https://example.com
+          SITE_BASE_PATH: /openhue-client
+        run: npm run pages:build
 
   publish-container:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'

@@ -117,8 +117,11 @@ const response = await client.raw.getLights();
 - [Event streaming](docs/event-streaming.md)
 - [Testing and harness](docs/testing.md)
 - [Agent playbooks](docs/agent-playbooks.md)
+- [GitHub Pages publishing](docs/github-pages.md)
 - [Contributing guide](CONTRIBUTING.md)
 - API reference: `npm run docs` outputs to `docs/api`
+
+Build the GitHub Pages site locally with `SITE_ORIGIN=https://example.com SITE_BASE_PATH=/openhue-client npm run pages:build`.
 
 ## Project Layout
 

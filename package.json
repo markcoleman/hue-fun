@@ -45,7 +45,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "docs": "typedoc",
-    "harness": "tsx scripts/harness.ts"
+    "harness": "tsx scripts/harness.ts",
+    "pages:build": "tsx scripts/build-site.ts"
   },
   "devDependencies": {
     "@hey-api/openapi-ts": "0.94.1",
