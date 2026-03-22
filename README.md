@@ -18,12 +18,16 @@ npm install
 
 ## Commands
 
+Run `npm run validate` for the default contributor and agent verification path.
+
+
 ```bash
 npm run generate
 npm run generate:check
 npm run typecheck
 npm test
 npm run build
+npm run validate
 npm run build:exe
 npm run docs
 npm run harness -- discover
@@ -113,6 +117,7 @@ const response = await client.raw.getLights();
 - [Event streaming](docs/event-streaming.md)
 - [Testing and harness](docs/testing.md)
 - [Agent playbooks](docs/agent-playbooks.md)
+- [Contributing guide](CONTRIBUTING.md)
 - API reference: `npm run docs` outputs to `docs/api`
 
 ## Project Layout

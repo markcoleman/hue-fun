@@ -37,6 +37,7 @@
     "generate:check": "tsx scripts/check-generated.ts",
     "build": "tsdown",
     "build:exe": "npm run build && tsx scripts/build-exe.ts",
+    "validate": "tsx scripts/validate.ts",
     "cli": "tsx src/cli/bin.ts",
     "mcp": "tsx src/mcp/bin.ts",
     "mcp:http": "tsx src/mcp/bin.ts --transport http",
