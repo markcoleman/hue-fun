@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-label="OpenHue Client social card">
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-label="NewHue Client social card">
   <defs>
     <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#0f172a" />
@@ -18,7 +18,7 @@
   <circle cx="960" cy="145" r="220" fill="url(#pink)" />
   <circle cx="240" cy="480" r="250" fill="url(#cyan)" />
   <rect x="72" y="72" width="1056" height="486" rx="28" fill="rgba(15,23,42,0.48)" stroke="rgba(255,255,255,0.18)" />
-  <text x="108" y="176" fill="#e9d5ff" font-family="Inter, Arial, sans-serif" font-size="32" font-weight="700">OpenHue Client ✨</text>
+  <text x="108" y="176" fill="#e9d5ff" font-family="Inter, Arial, sans-serif" font-size="32" font-weight="700">NewHue Client ✨</text>
   <text x="108" y="286" fill="#ffffff" font-family="Inter, Arial, sans-serif" font-size="74" font-weight="800">Fun docs for Philips Hue</text>
   <text x="108" y="372" fill="#dbeafe" font-family="Inter, Arial, sans-serif" font-size="38">TypeScript SDK · CLI · MCP server · GitHub Pages glow-up</text>
   <text x="108" y="472" fill="#ffffff" font-family="Inter, Arial, sans-serif" font-size="32">Dark mode, guides, SEO, iMessage previews, and support links at buymeacottoncandy.com</text>

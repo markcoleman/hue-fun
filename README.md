@@ -1,4 +1,4 @@
-# OpenHue Client
+# NewHue Client
 
 TypeScript client and helper layer for the Philips Hue CLIP v2 API, generated from `openhue.yaml` and wrapped with ergonomic helpers for authentication, lights, grouped lights, scenes, and event streaming.
 
@@ -37,7 +37,7 @@ npm run cli -- status
 ## Quick Start
 
 ```ts
-import { createHueClient, discoverHueBridges } from "openhue-client";
+import { createHueClient, discoverHueBridges } from "newhue-client";
 
 const [bridge] = await discoverHueBridges();
 const client = createHueClient({
@@ -60,7 +60,7 @@ npm run harness -- auth --bridge-url https://<bridge-ip> --client-key
 In code:
 
 ```ts
-import { authenticate } from "openhue-client";
+import { authenticate } from "newhue-client";
 
 const credentials = await authenticate({
   bridgeUrl: "https://192.168.1.10",
@@ -121,7 +121,7 @@ const response = await client.raw.getLights();
 - [Contributing guide](CONTRIBUTING.md)
 - API reference: `npm run docs` outputs to `docs/api`
 
-Build the GitHub Pages site locally with `SITE_ORIGIN=https://example.com SITE_BASE_PATH=/openhue-client npm run pages:build`.
+Build the GitHub Pages site locally with `SITE_ORIGIN=https://example.com SITE_BASE_PATH=/newhue-client npm run pages:build`.
 
 ## Project Layout
 

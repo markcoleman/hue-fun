@@ -584,7 +584,7 @@ function registerGroupCommands(program: Command, kind: "room" | "zone", deps: Cl
 export function createHueProgram(deps: CliDependencies = {}): Command {
   const program = attachGlobalOptions(new Command())
     .name("hue")
-    .description("Interactive Philips Hue CLI built on openhue-client")
+    .description("Interactive Philips Hue CLI built on newhue-client")
     .showHelpAfterError()
     .exitOverride();
 
@@ -657,7 +657,7 @@ export function createHueProgram(deps: CliDependencies = {}): Command {
         deviceType,
         ...(debugFetch ? { fetch: debugFetch } : runtime.deps.fetch ? { fetch: runtime.deps.fetch } : {}),
         generateClientKey: options.generateClientKey === true,
-        userAgent: "openhue-client-cli/0.1.0",
+        userAgent: "newhue-client-cli/0.1.0",
       });
 
       updateProfileConfig(runtime, (current) => ({

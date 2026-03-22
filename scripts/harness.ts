@@ -91,7 +91,7 @@ function createClientFromEnv(flags: Map<string, string | boolean>) {
     bridgeUrl,
     ...(clientKey ? { clientKey } : {}),
     ...(debugFetch ? { fetch: debugFetch } : {}),
-    userAgent: "openhue-client-harness/0.1.0",
+    userAgent: "newhue-client-harness/0.1.0",
   });
 }
 
@@ -225,7 +225,7 @@ async function main(): Promise<void> {
     }
     case "auth": {
       const bridgeUrl = getFlag(flags, "bridge-url") ?? process.env.HUE_BRIDGE_URL;
-      const deviceType = getFlag(flags, "device-type") ?? process.env.HUE_DEVICE_TYPE ?? "codex#openhue-client";
+      const deviceType = getFlag(flags, "device-type") ?? process.env.HUE_DEVICE_TYPE ?? "codex#newhue-client";
       enableInsecureTls({ secureTls: flags.get("secure-tls") === true });
       const debugFetch = createDebugFetch(
         { debugHttp: flags.get("debug-http") === true },
@@ -242,7 +242,7 @@ async function main(): Promise<void> {
           deviceType,
           generateClientKey: flags.get("client-key") === true,
           ...(debugFetch ? { fetch: debugFetch } : {}),
-          userAgent: "openhue-client-harness/0.1.0",
+          userAgent: "newhue-client-harness/0.1.0",
         }),
       );
       return;

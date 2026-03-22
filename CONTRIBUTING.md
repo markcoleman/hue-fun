@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for improving OpenHue Client.
+Thanks for improving NewHue Client.
 
 ## Fast path
 

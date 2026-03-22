@@ -631,7 +631,7 @@ export class HueMcpServer {
             },
             protocolVersion,
             serverInfo: {
-              name: "openhue-client",
+              name: "newhue-client",
               version: packageVersion,
             },
           });

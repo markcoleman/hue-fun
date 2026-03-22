@@ -158,7 +158,7 @@ describe("Hue MCP server", () => {
         capabilities: { tools: {} },
         protocolVersion: "2025-03-26",
         serverInfo: {
-          name: "openhue-client",
+          name: "newhue-client",
           version: expect.any(String),
         },
       },

@@ -5,7 +5,7 @@ Hue bridge authentication is local-network only and requires pressing the bridge
 ## Programmatic authentication
 
 ```ts
-import { authenticate } from "openhue-client";
+import { authenticate } from "newhue-client";
 
 const result = await authenticate({
   bridgeUrl: "https://192.168.1.10",
