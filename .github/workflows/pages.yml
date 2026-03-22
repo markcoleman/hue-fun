@@ -1,0 +1,52 @@
+name: GitHub Pages
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      SITE_ORIGIN: https://${{ github.repository_owner }}.github.io
+      SITE_BASE_PATH: /${{ github.event.repository.name }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          cache: npm
+          node-version: "22"
+
+      - uses: actions/configure-pages@v5
+
+      - run: npm ci
+      - run: npm run docs
+      - run: npm run pages:build
+
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: site-dist
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -23,3 +23,9 @@ Prompt template:
 Prompt template:
 
 > Diagnose event stream behavior in `client.events.stream()`, preserve reconnect behavior and `If-None-Match` handling, add regression tests in `test/unit/sse.test.ts`, and avoid breaking the JSON polling helper.
+
+## Default verification pass
+
+Prompt template:
+
+> Make the smallest maintainable change, add or update deterministic unit tests, avoid editing `src/generated` by hand, and finish by running `npm run validate`.
