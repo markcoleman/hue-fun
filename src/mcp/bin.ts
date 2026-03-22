@@ -1,5 +1,8 @@
 #!/usr/bin/env node
 
-import { runHueMcpServer } from "./server";
+import { runHueCli } from "../cli/app";
 
-await runHueMcpServer();
+const exitCode = await runHueCli(["mcp", ...process.argv.slice(2)]);
+if (exitCode !== 0) {
+  process.exitCode = exitCode;
+}

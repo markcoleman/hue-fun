@@ -39,6 +39,7 @@
     "build:exe": "npm run build && tsx scripts/build-exe.ts",
     "cli": "tsx src/cli/bin.ts",
     "mcp": "tsx src/mcp/bin.ts",
+    "mcp:http": "tsx src/mcp/bin.ts --transport http",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",

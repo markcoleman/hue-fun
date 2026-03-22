@@ -30,15 +30,18 @@ The standalone executable embeds Node via SEA, so it does not require Node to be
 
 ## MCP server
 
-The package now exposes a stdio MCP server for LLM clients that can launch local commands. You can start it either through the main CLI or the dedicated bin entry:
+The package now exposes MCP over both stdio and HTTP. For the full transport, Docker, secret, and header-forwarding setup guide, see [`docs/mcp.md`](./mcp.md).
+
+Quick examples:
 
 ```bash
 npm run mcp
 npm run cli -- mcp
-./dist/hue-mcp.mjs
+npm run cli -- mcp --transport http --host 127.0.0.1 --port 8080 --api-key local-dev-secret
+./dist/hue-mcp.mjs --transport http --host 127.0.0.1 --port 8080 --api-key local-dev-secret
 ```
 
-The MCP server resolves bridge settings the same way as the interactive CLI, so `--bridge-url`, `--app-key`, `--profile`, `.env`, and saved keychain secrets all still apply. When launching through the main CLI, pass those flags before the `mcp` subcommand if needed.
+The MCP server resolves bridge settings the same way as the interactive CLI, so `--bridge-url`, `--app-key`, `--profile`, `.env`, and saved keychain secrets all still apply.
 
 Exposed tools:
 

@@ -1,11 +1,14 @@
-import { describe, expect, it } from "vitest";
+import type { AddressInfo } from "node:net";
 
-import { HueMcpServer } from "../../src/mcp/server";
+import { afterEach, describe, expect, it } from "vitest";
+
+import { HueMcpServer, createHueMcpHttpServer } from "../../src/mcp/server";
 import type { SecretStore, StoredSecrets } from "../../src/cli/types";
 import { jsonResponse, readRequestJson } from "./helpers";
 
 type RequestLog = {
   body: unknown;
+  headers: Record<string, string>;
   method: string;
   url: string;
 };
@@ -80,7 +83,12 @@ function createFetchStub(fixture = createFixture()) {
     const request = input instanceof Request ? input : new Request(input, init);
     const url = new URL(request.url);
     const body = await readRequestJson(request);
-    requests.push({ body, method: request.method, url: url.pathname });
+    requests.push({
+      body,
+      headers: Object.fromEntries(request.headers.entries()),
+      method: request.method,
+      url: url.pathname,
+    });
 
     switch (`${request.method} ${url.pathname}`) {
       case "GET /clip/v2/resource/device":
@@ -103,6 +111,33 @@ function createFetchStub(fixture = createFixture()) {
   };
 
   return { fetch, requests };
+}
+
+const servers: Array<{ close: () => Promise<void> }> = [];
+
+afterEach(async () => {
+  await Promise.all(servers.splice(0).map((server) => server.close()));
+});
+
+async function startHttpServer(server: ReturnType<typeof createHueMcpHttpServer>) {
+  await new Promise<void>((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => resolve());
+  });
+  const address = server.address() as AddressInfo;
+  servers.push({
+    close: () =>
+      new Promise<void>((resolve, reject) => {
+        server.close((error) => {
+          if (error) {
+            reject(error);
+            return;
+          }
+          resolve();
+        });
+      }),
+  });
+  return `http://127.0.0.1:${address.port}/mcp`;
 }
 
 describe("Hue MCP server", () => {
@@ -200,5 +235,78 @@ describe("Hue MCP server", () => {
       isError: true,
     });
     expect(requests.filter((entry) => entry.method === "PUT")).toHaveLength(0);
+  });
+
+  it("exposes the HTTP MCP endpoint with API key auth and forwards Hue app keys from headers", async () => {
+    const keychain = createKeychain({ default: { applicationKey: "stored-app-key" } });
+    const { fetch, requests } = createFetchStub();
+    const server = createHueMcpHttpServer(
+      {
+        apiKey: "mcp-secret",
+        transport: "http",
+      },
+      {
+        env: { HUE_BRIDGE_URL: "https://bridge.local" },
+        fetch,
+        keychain,
+      },
+    );
+    const endpoint = await startHttpServer(server);
+
+    const response = await globalThis.fetch(endpoint, {
+      body: JSON.stringify({
+        id: 5,
+        jsonrpc: "2.0",
+        method: "tools/call",
+        params: { arguments: {}, name: "get_status" },
+      }),
+      headers: {
+        Accept: "application/json, text/event-stream",
+        Authorization: "Bearer mcp-secret",
+        "Content-Type": "application/json",
+        "Hue-Application-Key": "header-app-key",
+      },
+      method: "POST",
+    });
+
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body).toMatchObject({
+      result: {
+        structuredContent: {
+          applicationKeyConfigured: true,
+          bridgeUrl: "https://bridge.local",
+        },
+      },
+    });
+    expect(requests[0]?.headers["hue-application-key"]).toBe("header-app-key");
+  });
+
+  it("rejects unauthorized HTTP MCP requests", async () => {
+    const keychain = createKeychain({ default: { applicationKey: "stored-app-key" } });
+    const { fetch } = createFetchStub();
+    const server = createHueMcpHttpServer(
+      {
+        apiKey: "mcp-secret",
+        transport: "http",
+      },
+      {
+        env: { HUE_BRIDGE_URL: "https://bridge.local" },
+        fetch,
+        keychain,
+      },
+    );
+    const endpoint = await startHttpServer(server);
+
+    const response = await globalThis.fetch(endpoint, {
+      body: JSON.stringify({ id: 6, jsonrpc: "2.0", method: "tools/list" }),
+      headers: {
+        Accept: "application/json, text/event-stream",
+        "Content-Type": "application/json",
+      },
+      method: "POST",
+    });
+
+    expect(response.status).toBe(401);
   });
 });

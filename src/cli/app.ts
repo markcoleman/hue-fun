@@ -1,7 +1,7 @@
 import { Command, CommanderError } from "commander";
 
 import { authenticate, discoverHueBridges } from "../index";
-import { runHueMcpServer } from "../mcp/server";
+import { runHueMcpServer, type HueMcpRunOptions } from "../mcp/server";
 import type { ResourceIdentifier, RoomArchetype, ScenePut } from "../generated/types.gen";
 import { createDebugFetch, enableInsecureTls, formatError, isCertificateFailure } from "../internal/bridge-runtime";
 import { createCliHueClient, loadInventory, applyGroupState, applyLightState, createGroup, deleteGroup, mergeGroupMembers, recallScene, refreshGroup, resolveGroup, resolveLight, resolveMemberDeviceRefs, resolveScene, toggleLight, updateGroup, type HueInventory, type InventoryGroup } from "./hue-service";
@@ -44,6 +44,39 @@ function pickGlobalOptions(command: Command): GlobalCliOptions {
     profile: typeof options.profile === "string" ? options.profile : undefined,
     secureTls: options.secureTls === true,
     yes: options.yes === true,
+  };
+}
+
+function parseIntegerOption(value: string | undefined, label: string): number | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed)) {
+    throw new HueCliError(`${label} must be an integer.`, { exitCode: 2 });
+  }
+
+  return parsed;
+}
+
+function collectValues(value: string, previous: string[] = []): string[] {
+  return [...previous, value];
+}
+
+function pickMcpOptions(command: Command): HueMcpRunOptions {
+  const options = command.optsWithGlobals() as Record<string, unknown>;
+  return {
+    ...pickGlobalOptions(command),
+    allowOrigins: Array.isArray(options.allowOrigin)
+      ? options.allowOrigin.filter((entry): entry is string => typeof entry === "string" && entry.length > 0)
+      : undefined,
+    apiKey: typeof options.apiKey === "string" ? options.apiKey : undefined,
+    apiKeyFile: typeof options.apiKeyFile === "string" ? options.apiKeyFile : undefined,
+    host: typeof options.host === "string" ? options.host : undefined,
+    hueAppKeyHeader: typeof options.hueAppKeyHeader === "string" ? options.hueAppKeyHeader : undefined,
+    port: parseIntegerOption(typeof options.port === "string" ? options.port : undefined, "Port"),
+    transport: typeof options.transport === "string" ? options.transport : undefined,
   };
 }
 
@@ -960,9 +993,16 @@ export function createHueProgram(deps: CliDependencies = {}): Command {
 
   program
     .command("mcp")
-    .description("run the Hue MCP server over stdio")
+    .description("run the Hue MCP server over stdio or HTTP")
+    .option("--transport <transport>", "MCP transport: stdio or http")
+    .option("--host <host>", "HTTP bind host")
+    .option("--port <port>", "HTTP bind port")
+    .option("--api-key <key>", "HTTP API key secret for Authorization: Bearer or X-API-Key")
+    .option("--api-key-file <path>", "file containing the HTTP API key secret")
+    .option("--allow-origin <origin>", "allowed Origin header for HTTP transport", collectValues, [])
+    .option("--hue-app-key-header <name>", "request header used to override the downstream Hue application key")
     .action(async function () {
-      await runHueMcpServer(pickGlobalOptions(this), deps);
+      await runHueMcpServer(pickMcpOptions(this), deps);
     });
 
   program

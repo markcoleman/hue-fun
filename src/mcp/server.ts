@@ -1,6 +1,8 @@
+import { readFileSync } from "node:fs";
+import { createServer, type IncomingHttpHeaders, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+import { timingSafeEqual } from "node:crypto";
+import { resolve } from "node:path";
 import { createInterface } from "node:readline";
-
-const packageVersion = "0.1.0";
 
 import type { ScenePut } from "../generated/types.gen";
 import { formatError } from "../internal/bridge-runtime";
@@ -32,6 +34,32 @@ type Transport = {
   output: NodeJS.WritableStream;
 };
 
+export interface HueMcpRunOptions extends GlobalCliOptions {
+  apiKey?: string;
+  apiKeyFile?: string;
+  allowOrigins?: string[];
+  host?: string;
+  hueAppKeyHeader?: string;
+  port?: number;
+  transport?: string;
+}
+
+type ResolvedMcpRuntimeOptions = {
+  apiKey?: string;
+  allowOrigins: string[];
+  host: string;
+  hueAppKeyHeader: string;
+  port: number;
+  transport: "http" | "stdio";
+};
+
+type HttpPayloadResult =
+  | { status: 202 }
+  | { body: JsonObject | JsonObject[]; status: 200 };
+
+const packageVersion = "0.1.0";
+const HTTP_ENDPOINT_PATH = "/mcp";
+const HTTP_ALLOW_HEADER = "GET, POST, OPTIONS";
 const SUPPORTED_PROTOCOL_VERSIONS = ["2025-03-26", "2024-11-05"] as const;
 
 const toolDefinitions: ToolDefinition[] = [
@@ -240,6 +268,167 @@ function buildState(args: JsonObject) {
   return state;
 }
 
+function parsePort(value: string | undefined, fallback: number): number {
+  if (!value) {
+    return fallback;
+  }
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed <= 0 || parsed > 65535) {
+    throw new HueCliError("MCP HTTP port must be an integer between 1 and 65535.", { exitCode: 2 });
+  }
+  return parsed;
+}
+
+function parseOriginList(value: string | undefined): string[] {
+  if (!value) {
+    return [];
+  }
+  return value
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+}
+
+function resolveApiKey(options: HueMcpRunOptions, deps: CliDependencies): string | undefined {
+  if (options.apiKey) {
+    return options.apiKey;
+  }
+
+  const env = deps.env ?? process.env;
+  if (env.HUE_MCP_API_KEY) {
+    return env.HUE_MCP_API_KEY;
+  }
+
+  const apiKeyFile = options.apiKeyFile ?? env.HUE_MCP_API_KEY_FILE;
+  if (!apiKeyFile) {
+    return undefined;
+  }
+
+  const cwd = deps.cwd ?? process.cwd();
+  return readFileSync(resolve(cwd, apiKeyFile), "utf8").trim();
+}
+
+function resolveMcpRuntimeOptions(options: HueMcpRunOptions, deps: CliDependencies): ResolvedMcpRuntimeOptions {
+  const env = deps.env ?? process.env;
+  const transport = options.transport ?? env.HUE_MCP_TRANSPORT ?? "stdio";
+  if (transport !== "stdio" && transport !== "http") {
+    throw new HueCliError(`Unsupported MCP transport \`${transport}\`. Use stdio or http.`, { exitCode: 2 });
+  }
+
+  return {
+    apiKey: resolveApiKey(options, deps),
+    allowOrigins: options.allowOrigins && options.allowOrigins.length > 0
+      ? options.allowOrigins
+      : parseOriginList(env.HUE_MCP_ALLOWED_ORIGINS),
+    host: options.host ?? env.HUE_MCP_HOST ?? "127.0.0.1",
+    hueAppKeyHeader: (options.hueAppKeyHeader ?? env.HUE_MCP_HUE_APP_KEY_HEADER ?? "x-hue-application-key").toLowerCase(),
+    port: options.port ?? parsePort(env.HUE_MCP_PORT, 3000),
+    transport,
+  };
+}
+
+function getHeader(headers: IncomingHttpHeaders, key: string): string | undefined {
+  const value = headers[key.toLowerCase()];
+  if (Array.isArray(value)) {
+    return value[0];
+  }
+  return value;
+}
+
+function secureEquals(left: string, right: string): boolean {
+  const leftBuffer = Buffer.from(left);
+  const rightBuffer = Buffer.from(right);
+  if (leftBuffer.length !== rightBuffer.length) {
+    return false;
+  }
+  return timingSafeEqual(leftBuffer, rightBuffer);
+}
+
+function isAuthorized(headers: IncomingHttpHeaders, apiKey: string | undefined): boolean {
+  if (!apiKey) {
+    return false;
+  }
+
+  const authorization = getHeader(headers, "authorization");
+  if (authorization?.startsWith("Bearer ")) {
+    return secureEquals(authorization.slice("Bearer ".length), apiKey);
+  }
+
+  const xApiKey = getHeader(headers, "x-api-key");
+  if (xApiKey) {
+    return secureEquals(xApiKey, apiKey);
+  }
+
+  return false;
+}
+
+function isOriginAllowed(origin: string | undefined, allowedOrigins: string[]): boolean {
+  if (!origin) {
+    return true;
+  }
+  if (allowedOrigins.includes("*")) {
+    return true;
+  }
+  return allowedOrigins.includes(origin);
+}
+
+function applyCors(response: ServerResponse, origin: string | undefined, allowedOrigins: string[]): void {
+  if (!origin || !isOriginAllowed(origin, allowedOrigins)) {
+    return;
+  }
+  response.setHeader("Access-Control-Allow-Origin", allowedOrigins.includes("*") ? "*" : origin);
+  response.setHeader("Access-Control-Allow-Headers", "authorization, content-type, hue-application-key, mcp-session-id, x-api-key, x-hue-application-key");
+  response.setHeader("Access-Control-Allow-Methods", HTTP_ALLOW_HEADER);
+  response.setHeader("Vary", "Origin");
+}
+
+async function readRequestBody(request: IncomingMessage): Promise<string> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of request) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+  return Buffer.concat(chunks).toString("utf8");
+}
+
+function sendJson(response: ServerResponse, statusCode: number, payload: unknown): void {
+  response.statusCode = statusCode;
+  response.setHeader("Content-Type", "application/json; charset=utf-8");
+  response.end(JSON.stringify(payload));
+}
+
+function sendEmpty(response: ServerResponse, statusCode: number): void {
+  response.statusCode = statusCode;
+  response.end();
+}
+
+function successResponse(id: JsonRpcId, result: unknown) {
+  return { id, jsonrpc: "2.0", result };
+}
+
+function errorResponse(id: JsonRpcId, code: number, message: string, data?: unknown) {
+  return {
+    error: {
+      code,
+      ...(data === undefined ? {} : { data }),
+      message,
+    },
+    id,
+    jsonrpc: "2.0",
+  };
+}
+
+function formatToolResult(payload: unknown) {
+  return {
+    content: [
+      {
+        text: JSON.stringify(payload, null, 2),
+        type: "text",
+      },
+    ],
+    structuredContent: payload,
+  };
+}
+
 async function resolveMcpSettings(deps: CliDependencies, options: GlobalCliOptions) {
   const keychain = deps.keychain ?? createKeychainStore();
   return resolveCliSettings(options, { ...deps, keychain, stdinIsTTY: false, stdoutIsTTY: false });
@@ -406,34 +595,6 @@ const toolHandlers: Record<string, ToolHandler> = {
   },
 };
 
-function successResponse(id: JsonRpcId, result: unknown) {
-  return { id, jsonrpc: "2.0", result };
-}
-
-function errorResponse(id: JsonRpcId, code: number, message: string, data?: unknown) {
-  return {
-    error: {
-      code,
-      ...(data === undefined ? {} : { data }),
-      message,
-    },
-    id,
-    jsonrpc: "2.0",
-  };
-}
-
-function formatToolResult(payload: unknown) {
-  return {
-    content: [
-      {
-        text: JSON.stringify(payload, null, 2),
-        type: "text",
-      },
-    ],
-    structuredContent: payload,
-  };
-}
-
 export class HueMcpServer {
   constructor(
     private readonly deps: CliDependencies = {},
@@ -517,7 +678,145 @@ export class HueMcpServer {
   }
 }
 
-export async function runHueMcpServer(options: GlobalCliOptions = {}, deps: CliDependencies = {}, transport?: Partial<Transport>): Promise<void> {
+function isJsonRpcResponse(value: unknown): boolean {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return false;
+  }
+  const record = value as Record<string, unknown>;
+  return record.jsonrpc === "2.0" && ("result" in record || "error" in record) && !("method" in record);
+}
+
+function resolveRequestOptions(baseOptions: HueMcpRunOptions, requestHeaders: IncomingHttpHeaders, runtime: ResolvedMcpRuntimeOptions): GlobalCliOptions {
+  const requestAppKey = getHeader(requestHeaders, "hue-application-key") ?? getHeader(requestHeaders, runtime.hueAppKeyHeader);
+  return {
+    ...baseOptions,
+    ...(requestAppKey ? { appKey: requestAppKey } : {}),
+  };
+}
+
+async function processJsonRpcPayload(
+  payload: unknown,
+  deps: CliDependencies,
+  options: HueMcpRunOptions,
+  requestHeaders: IncomingHttpHeaders,
+  runtime: ResolvedMcpRuntimeOptions,
+): Promise<HttpPayloadResult> {
+  const items = Array.isArray(payload) ? payload : [payload];
+  if (Array.isArray(payload) && items.length === 0) {
+    return {
+      body: [errorResponse(null, -32600, "Invalid Request: empty batch.")],
+      status: 200,
+    };
+  }
+
+  const scopedServer = new HueMcpServer(deps, resolveRequestOptions(options, requestHeaders, runtime));
+  const responses: JsonObject[] = [];
+  let sawRequest = false;
+
+  for (const item of items) {
+    if (isJsonRpcResponse(item)) {
+      continue;
+    }
+
+    if (typeof item !== "object" || item === null || Array.isArray(item)) {
+      sawRequest = true;
+      responses.push(errorResponse(null, -32600, "Invalid Request."));
+      continue;
+    }
+
+    const message = item as JsonRpcRequest;
+    if (typeof message.method === "string") {
+      if (message.id !== undefined) {
+        sawRequest = true;
+      }
+      const response = await scopedServer.handleMessage(message);
+      if (response) {
+        responses.push(response);
+      }
+      continue;
+    }
+
+    responses.push(errorResponse(message.id ?? null, -32600, "Invalid Request: method is required."));
+    sawRequest = true;
+  }
+
+  if (!sawRequest || responses.length === 0) {
+    return { status: 202 };
+  }
+
+  return {
+    body: Array.isArray(payload) ? responses : responses[0]!,
+    status: 200,
+  };
+}
+
+export function createHueMcpHttpServer(options: HueMcpRunOptions = {}, deps: CliDependencies = {}): Server {
+  const runtime = resolveMcpRuntimeOptions(options, deps);
+  if (!runtime.apiKey) {
+    throw new HueCliError("HTTP MCP transport requires HUE_MCP_API_KEY, HUE_MCP_API_KEY_FILE, --api-key, or --api-key-file.", {
+      exitCode: 2,
+    });
+  }
+
+  return createServer(async (request, response) => {
+    const origin = getHeader(request.headers, "origin");
+    applyCors(response, origin, runtime.allowOrigins);
+    response.setHeader("Allow", HTTP_ALLOW_HEADER);
+
+    if (!isOriginAllowed(origin, runtime.allowOrigins)) {
+      sendJson(response, 403, { error: "Origin not allowed." });
+      return;
+    }
+
+    if ((request.url ?? "").split("?")[0] !== HTTP_ENDPOINT_PATH) {
+      sendJson(response, 404, { error: `Not found. Use ${HTTP_ENDPOINT_PATH}.` });
+      return;
+    }
+
+    if (request.method === "OPTIONS") {
+      sendEmpty(response, 204);
+      return;
+    }
+
+    if (request.method === "GET") {
+      sendEmpty(response, 405);
+      return;
+    }
+
+    if (request.method !== "POST") {
+      sendJson(response, 405, { error: "Method not allowed." });
+      return;
+    }
+
+    if (!isAuthorized(request.headers, runtime.apiKey)) {
+      response.setHeader("WWW-Authenticate", 'Bearer realm="hue-mcp"');
+      sendJson(response, 401, { error: "Unauthorized." });
+      return;
+    }
+
+    let payload: unknown;
+    try {
+      const body = await readRequestBody(request);
+      payload = body.length === 0 ? {} : (JSON.parse(body) as unknown);
+    } catch (error) {
+      sendJson(response, 400, errorResponse(null, -32700, `Parse error: ${formatError(error)}`));
+      return;
+    }
+
+    try {
+      const result = await processJsonRpcPayload(payload, deps, options, request.headers, runtime);
+      if (result.status === 202) {
+        sendEmpty(response, 202);
+        return;
+      }
+      sendJson(response, 200, result.body);
+    } catch (error) {
+      sendJson(response, 500, errorResponse(null, -32603, formatError(error)));
+    }
+  });
+}
+
+async function runHueMcpStdioServer(options: HueMcpRunOptions, deps: CliDependencies, transport?: Partial<Transport>): Promise<void> {
   const server = new HueMcpServer(deps, options);
   const input = transport?.input ?? process.stdin;
   const output = transport?.output ?? process.stdout;
@@ -543,4 +842,34 @@ export async function runHueMcpServer(options: GlobalCliOptions = {}, deps: CliD
       output.write(`${JSON.stringify(response)}\n`);
     }
   }
+}
+
+async function runHueMcpHttpServer(options: HueMcpRunOptions, deps: CliDependencies): Promise<void> {
+  const runtime = resolveMcpRuntimeOptions(options, deps);
+  const server = createHueMcpHttpServer(options, deps);
+  const stderr = deps.stderr ?? ((line: string) => console.error(line));
+
+  await new Promise<void>((resolvePromise, rejectPromise) => {
+    server.once("error", rejectPromise);
+    server.listen(runtime.port, runtime.host, () => {
+      server.off("error", rejectPromise);
+      resolvePromise();
+    });
+  });
+
+  stderr(`Hue MCP HTTP server listening on http://${runtime.host}:${runtime.port}${HTTP_ENDPOINT_PATH}`);
+
+  await new Promise<void>((resolvePromise, rejectPromise) => {
+    server.once("close", resolvePromise);
+    server.once("error", rejectPromise);
+  });
+}
+
+export async function runHueMcpServer(options: HueMcpRunOptions = {}, deps: CliDependencies = {}, transport?: Partial<Transport>): Promise<void> {
+  const runtime = resolveMcpRuntimeOptions(options, deps);
+  if (runtime.transport === "http") {
+    await runHueMcpHttpServer(options, deps);
+    return;
+  }
+  await runHueMcpStdioServer(options, deps, transport);
 }
