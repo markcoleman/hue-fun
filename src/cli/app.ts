@@ -1,6 +1,7 @@
 import { Command, CommanderError } from "commander";
 
 import { authenticate, discoverHueBridges } from "../index";
+import { runHueMcpServer } from "../mcp/server";
 import type { ResourceIdentifier, RoomArchetype, ScenePut } from "../generated/types.gen";
 import { createDebugFetch, enableInsecureTls, formatError, isCertificateFailure } from "../internal/bridge-runtime";
 import { createCliHueClient, loadInventory, applyGroupState, applyLightState, createGroup, deleteGroup, mergeGroupMembers, recallScene, refreshGroup, resolveGroup, resolveLight, resolveMemberDeviceRefs, resolveScene, toggleLight, updateGroup, type HueInventory, type InventoryGroup } from "./hue-service";
@@ -955,6 +956,13 @@ export function createHueProgram(deps: CliDependencies = {}): Command {
         };
       });
       runtime.output.success(`Deleted workflow ${name}.`);
+    });
+
+  program
+    .command("mcp")
+    .description("run the Hue MCP server over stdio")
+    .action(async function () {
+      await runHueMcpServer(pickGlobalOptions(this), deps);
     });
 
   program

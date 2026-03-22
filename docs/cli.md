@@ -11,11 +11,12 @@ npm install
 npm run cli -- status
 ```
 
-After building, the generated executable entry is available as:
+After building, the generated executable entries are available as:
 
 ```bash
 npm run build
 ./dist/hue.mjs status
+./dist/hue-mcp.mjs
 ```
 
 To build a self-contained standalone executable for the current platform and architecture:
@@ -26,6 +27,31 @@ npm run build:exe
 ```
 
 The standalone executable embeds Node via SEA, so it does not require Node to be installed on the target machine.
+
+## MCP server
+
+The package now exposes a stdio MCP server for LLM clients that can launch local commands. You can start it either through the main CLI or the dedicated bin entry:
+
+```bash
+npm run mcp
+npm run cli -- mcp
+./dist/hue-mcp.mjs
+```
+
+The MCP server resolves bridge settings the same way as the interactive CLI, so `--bridge-url`, `--app-key`, `--profile`, `.env`, and saved keychain secrets all still apply. When launching through the main CLI, pass those flags before the `mcp` subcommand if needed.
+
+Exposed tools:
+
+- `get_status`
+- `list_lights`
+- `get_light`
+- `set_light_state`
+- `list_rooms`
+- `set_room_state`
+- `list_zones`
+- `set_zone_state`
+- `list_scenes`
+- `recall_scene`
 
 ## Config and secret precedence
 
