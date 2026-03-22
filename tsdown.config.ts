@@ -15,6 +15,7 @@ export default defineConfig([
     dts: false,
     entry: {
       hue: "src/cli/bin.ts",
+      "hue-mcp": "src/mcp/bin.ts",
     },
     format: ["esm"],
     platform: "node",

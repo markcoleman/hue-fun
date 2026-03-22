@@ -11,11 +11,12 @@ npm install
 npm run cli -- status
 ```
 
-After building, the generated executable entry is available as:
+After building, the generated executable entries are available as:
 
 ```bash
 npm run build
 ./dist/hue.mjs status
+./dist/hue-mcp.mjs
 ```
 
 To build a self-contained standalone executable for the current platform and architecture:
@@ -26,6 +27,34 @@ npm run build:exe
 ```
 
 The standalone executable embeds Node via SEA, so it does not require Node to be installed on the target machine.
+
+## MCP server
+
+The package now exposes MCP over both stdio and HTTP. For the full transport, Docker, secret, and header-forwarding setup guide, see [`docs/mcp.md`](./mcp.md).
+
+Quick examples:
+
+```bash
+npm run mcp
+npm run cli -- mcp
+npm run cli -- mcp --transport http --host 127.0.0.1 --port 8080 --api-key local-dev-secret
+./dist/hue-mcp.mjs --transport http --host 127.0.0.1 --port 8080 --api-key local-dev-secret
+```
+
+The MCP server resolves bridge settings the same way as the interactive CLI, so `--bridge-url`, `--app-key`, `--profile`, `.env`, and saved keychain secrets all still apply.
+
+Exposed tools:
+
+- `get_status`
+- `list_lights`
+- `get_light`
+- `set_light_state`
+- `list_rooms`
+- `set_room_state`
+- `list_zones`
+- `set_zone_state`
+- `list_scenes`
+- `recall_scene`
 
 ## Config and secret precedence
 
