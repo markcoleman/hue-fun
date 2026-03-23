@@ -55,7 +55,7 @@
     "postject": "1.0.0-alpha.6",
     "tsdown": "^0.21.4",
     "tsx": "^4.20.5",
-    "typedoc": "^0.28.13",
+    "typedoc": "^0.28.18",
     "typescript": "^5.9.2",
     "vitest": "^4.1.0"
   },
