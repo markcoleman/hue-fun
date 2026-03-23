@@ -49,7 +49,7 @@
     "pages:build": "tsx scripts/build-site.ts"
   },
   "devDependencies": {
-    "@hey-api/openapi-ts": "0.94.1",
+    "@hey-api/openapi-ts": "0.94.4",
     "@types/node": "^24.5.2",
     "@types/prompts": "2.4.9",
     "postject": "1.0.0-alpha.6",
