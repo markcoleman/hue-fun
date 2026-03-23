@@ -50,7 +50,7 @@
   },
   "devDependencies": {
     "@hey-api/openapi-ts": "0.94.1",
-    "@types/node": "^24.5.2",
+    "@types/node": "^25.5.0",
     "@types/prompts": "2.4.9",
     "postject": "1.0.0-alpha.6",
     "tsdown": "^0.21.4",
