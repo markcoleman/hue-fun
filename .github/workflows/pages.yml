@@ -30,13 +30,13 @@ jobs:
           cache: npm
           node-version: "22"
 
-      - uses: actions/configure-pages@v5
+      - uses: actions/configure-pages@v6
 
       - run: npm ci
       - run: npm run docs
       - run: npm run pages:build
 
-      - uses: actions/upload-pages-artifact@v4
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: site-dist
 
@@ -49,4 +49,4 @@ jobs:
 
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
